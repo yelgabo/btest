@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>btest run __RUN_ID__</title>
+<style>
+:root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --ring: rgba(11, 11, 11, 0.10);
+    --s1: #2a78d6;
+    --s2: #eb6834;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --page: #0d0d0d;
+        --surface: #1a1a19;
+        --ink: #ffffff;
+        --ink-2: #c3c2b7;
+        --grid: #2c2c2a;
+        --axis: #383835;
+        --ring: rgba(255, 255, 255, 0.10);
+        --s1: #3987e5;
+        --s2: #d95926;
+    }
+}
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --ring: rgba(255, 255, 255, 0.10);
+    --s1: #3987e5;
+    --s2: #d95926;
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+.sub { color: var(--ink-2); margin: 0 0 20px; overflow-wrap: anywhere; }
+.card {
+    background: var(--surface);
+    border: 1px solid var(--ring);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+.legend { display: flex; gap: 16px; color: var(--ink-2); font-size: 13px; margin-bottom: 8px; }
+.legend span::before {
+    content: ""; display: inline-block; width: 14px; height: 2px; margin-right: 6px;
+    vertical-align: middle; background: var(--c);
+}
+.chart { position: relative; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tip {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--surface); border: 1px solid var(--ring); border-radius: 6px;
+    padding: 6px 8px; font-size: 12px; white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.tip b { font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+          margin-right: 6px; background: var(--c); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--grid); }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink-2); font-weight: 600; }
+.scroll { overflow-x: auto; }
+details summary { cursor: pointer; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<main>
+<h1>Run __RUN_ID__: __STRATEGY__</h1>
+<p class="sub" id="sub"></p>
+
+<section class="card">
+    <h2>Equity</h2>
+    <div class="legend">
+        <span style="--c: var(--s1)">Strategy</span>
+        <span style="--c: var(--s2)">SPY buy and hold</span>
+    </div>
+    <div class="chart" id="equity"></div>
+</section>
+
+<section class="card">
+    <h2>Drawdown from peak</h2>
+    <div class="legend">
+        <span style="--c: var(--s1)">Strategy</span>
+        <span style="--c: var(--s2)">SPY buy and hold</span>
+    </div>
+    <div class="chart" id="drawdown"></div>
+</section>
+
+<section class="card scroll">
+    <h2>Metrics</h2>
+    <table id="metrics"></table>
+</section>
+
+<section class="card scroll">
+    <details>
+        <summary>Month-end values (table view)</summary>
+        <table id="monthly"></table>
+    </details>
+</section>
+</main>
+<script>
+const RUN = __DATA__;
+
+const pct = v => v == null ? "-" : (v * 100).toFixed(2) + "%";
+const num = (v, d = 2) => v == null ? "-" : v.toLocaleString(undefined,
+    {minimumFractionDigits: d, maximumFractionDigits: d});
+const money = v => v == null ? "-" : "$" + num(v, 0);
+
+const sub = document.getElementById("sub");
+sub.textContent = `${RUN.symbols.join(", ")} · from ${RUN.start} until ${RUN.end} UTC · params `
+    + JSON.stringify(RUN.params) + ` · slippage ${RUN.config.costs.slippage_bps} bps`
+    + (RUN.git_commit ? ` · commit ${RUN.git_commit.slice(0, 7)}${RUN.git_dirty ? " (dirty)" : ""}` : "");
+
+const dates = RUN.equity.map(r => r[0]);
+const strat = RUN.equity.map(r => r[1]);
+const bench = RUN.equity.map(r => r[2]);
+const drawdown = xs => {
+    let peak = -Infinity;
+    return xs.map(v => { if (v == null) return null; peak = Math.max(peak, v); return v / peak - 1; });
+};
+
+function niceTicks(lo, hi, count) {
+    const raw = (hi - lo) / count;
+    const mag = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(s => s >= raw);
+    const first = Math.floor(lo / step), last = Math.ceil(hi / step - 1e-9);
+    const ticks = [];
+    // Multiply integer indices rather than accumulating, so 0 stays exactly 0.
+    for (let k = first; k <= last; k++) ticks.push(k * step + 0);
+    return ticks;
+}
+
+function chart(el, series, fmt, opts = {}) {
+    el.replaceChildren();
+    const W = Math.max(300, el.clientWidth), H = opts.height || 320;
+    const m = {l: 64, r: 12, t: 8, b: 28};
+    const all = series.flatMap(s => s.values).filter(v => v != null);
+    const ticks = niceTicks(Math.min(...all), opts.zeroTop ? 0 : Math.max(...all),
+                            W < 500 ? 3 : 5);
+    const lo = ticks[0], hi = ticks[ticks.length - 1];
+    const n = dates.length;
+    const x = i => m.l + (W - m.l - m.r) * (n > 1 ? i / (n - 1) : 0);
+    const y = v => m.t + (H - m.t - m.b) * (1 - (v - lo) / (hi - lo));
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", opts.label);
+    const add = (tag, attrs, parent = svg) => {
+        const e = document.createElementNS(ns, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        parent.appendChild(e);
+        return e;
+    };
+    for (const v of ticks) {
+        const yy = y(v);
+        add("line", {x1: m.l, x2: W - m.r, y1: yy, y2: yy, stroke: "var(--grid)", "stroke-width": 1});
+        add("text", {x: m.l - 8, y: yy + 4, "text-anchor": "end", fill: "var(--muted)",
+                     "font-size": 12}).textContent = (opts.tickFmt || fmt)(v);
+    }
+    let lastYear = null, lastX = -Infinity;
+    dates.forEach((d, i) => {
+        const yr = d.slice(0, 4);
+        if (yr === lastYear) return;
+        lastYear = yr;
+        if (x(i) - lastX >= 44) {
+            lastX = x(i);
+            add("text", {x: x(i), y: H - 8, "text-anchor": "middle", fill: "var(--muted)",
+                         "font-size": 12}).textContent = yr;
+        }
+    });
+    add("line", {x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: "var(--axis)",
+                 "stroke-width": 1});
+    for (const s of series) {
+        let dpath = "", pen = false;
+        s.values.forEach((v, i) => {
+            if (v == null) { pen = false; return; }
+            dpath += (pen ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1);
+            pen = true;
+        });
+        add("path", {d: dpath, fill: "none", stroke: s.color, "stroke-width": 2,
+                     "stroke-linejoin": "round"});
+    }
+    const cross = add("line", {y1: m.t, y2: H - m.b, stroke: "var(--axis)", "stroke-width": 1,
+                               visibility: "hidden"});
+    const dots = series.map(s => add("circle", {r: 4, fill: s.color, stroke: "var(--surface)",
+                                                "stroke-width": 2, visibility: "hidden"}));
+    el.appendChild(svg);
+    const tip = document.createElement("div");
+    tip.className = "tip";
+    el.appendChild(tip);
+    const hide = () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden");
+                         dots.forEach(d => d.setAttribute("visibility", "hidden")); };
+    svg.addEventListener("pointerleave", hide);
+    svg.addEventListener("pointermove", ev => {
+        const r = svg.getBoundingClientRect();
+        const px = (ev.clientX - r.left) / r.width * W;
+        const i = Math.max(0, Math.min(n - 1, Math.round((px - m.l) / (W - m.l - m.r) * (n - 1))));
+        cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i));
+        cross.setAttribute("visibility", "visible");
+        series.forEach((s, k) => {
+            const v = s.values[i];
+            dots[k].setAttribute("visibility", v == null ? "hidden" : "visible");
+            if (v != null) { dots[k].setAttribute("cx", x(i)); dots[k].setAttribute("cy", y(v)); }
+        });
+        tip.replaceChildren();
+        const head = document.createElement("div");
+        head.textContent = dates[i];
+        tip.appendChild(head);
+        for (const s of series) {
+            const row = document.createElement("div");
+            const sw = document.createElement("span");
+            sw.className = "swatch"; sw.style.setProperty("--c", s.color);
+            const b = document.createElement("b");
+            b.textContent = fmt(s.values[i]);
+            row.append(sw, s.name + " ", b);
+            tip.appendChild(row);
+        }
+        tip.style.display = "block";
+        const left = x(i) / W * r.width;
+        const flip = left > r.width * 0.6;
+        tip.style.left = (flip ? left - tip.offsetWidth - 12 : left + 12) + "px";
+        tip.style.top = "8px";
+    });
+}
+
+const S1 = "var(--s1)", S2 = "var(--s2)";
+const tickPct = v => (v * 100).toFixed(Math.abs(v) < 0.1 && v !== 0 ? 1 : 0) + "%";
+function drawCharts() {
+chart(document.getElementById("equity"), [
+    {name: "Strategy", values: strat, color: S1},
+    {name: "SPY", values: bench, color: S2},
+], money, {label: "Equity of strategy and SPY buy and hold over time"});
+chart(document.getElementById("drawdown"), [
+    {name: "Strategy", values: drawdown(strat), color: S1},
+    {name: "SPY", values: drawdown(bench), color: S2},
+], pct, {label: "Drawdown from peak over time", zeroTop: true, height: 200,
+         tickFmt: tickPct});
+}
+drawCharts();
+let resizeTimer;
+window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(drawCharts, 150);
+});
+
+const ROWS = [
+    ["Total return", "total_return", pct], ["CAGR", "cagr", pct],
+    ["Annualized volatility", "ann_vol", pct], ["Sharpe", "sharpe", v => num(v)],
+    ["Sortino", "sortino", v => num(v)], ["Max drawdown", "max_drawdown", pct],
+    ["Longest drawdown (days)", "max_drawdown_days", v => num(v, 0)],
+    ["End equity", "end_equity", money], ["Exposure", "exposure", pct],
+    ["Fills", "fills", v => num(v, 0)], ["Win rate (closing fills)", "win_rate", pct],
+    ["Turnover (x equity per year)", "turnover", v => num(v, 1)],
+    ["Costs (slippage + fees)", "costs", money],
+];
+const mt = document.getElementById("metrics");
+mt.innerHTML = "<tr><th>Metric</th><th>Strategy</th><th>SPY buy and hold</th></tr>";
+for (const [label, key, f] of ROWS) {
+    const tr = document.createElement("tr");
+    for (const v of [label, f(RUN.metrics[key]),
+                     key in RUN.benchmark_metrics ? f(RUN.benchmark_metrics[key]) : ""]) {
+        const td = document.createElement("td");
+        td.textContent = v;
+        tr.appendChild(td);
+    }
+    mt.appendChild(tr);
+}
+
+const mo = document.getElementById("monthly");
+mo.innerHTML = "<tr><th>Month end</th><th>Strategy</th><th>SPY buy and hold</th></tr>";
+dates.forEach((d, i) => {
+    if (i < n_last() && dates[i + 1].slice(0, 7) === d.slice(0, 7)) return;
+    const tr = document.createElement("tr");
+    for (const v of [d, money(strat[i]), money(bench[i])]) {
+        const td = document.createElement("td");
+        td.textContent = v;
+        tr.appendChild(td);
+    }
+    mo.appendChild(tr);
+});
+function n_last() { return dates.length - 1; }
+</script>
+</body>
+</html>

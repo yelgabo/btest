@@ -83,14 +83,16 @@ available for fill modelling, since real orders fill at raw prices.
 ## Event engine
 
 The engine loops over bars in time order. It does not wait in real time. "Slow" means Python
-calls `strategy.on_bar()` once per bar per symbol, roughly 1M calls for 10 years of one symbol,
-which takes tens of seconds. That is fine for one run and too slow for thousands.
+calls `strategy.on_bar()` once per bar per symbol. Measured: 9 years of SPY (880k bars) with
+the moving-average example takes 3.7 s. That is fine for one run and too slow for thousands.
 
 Rules that prevent lookahead:
 
 - The strategy sees bar `t` only after bar `t` closes.
 - An order placed on bar `t` fills at bar `t+1` open, plus slippage.
 - Fills use raw prices; position sizes are adjusted on split dates.
+- Dividends are credited in cash on the ex-date (the real pay date is a few weeks later).
+- Buys are capped by available cash. Shorts are clipped to flat unless `--allow-short`.
 
 Cost model: commission $0 (Alpaca), configurable slippage in basis points, optional SEC and
 FINRA TAF fees on sells.
@@ -146,6 +148,8 @@ pandas_market_calendars, pytest. alpaca-py arrives with the paper broker in phas
    prior-close definition, cause open), NVDA and META within Alpaca's 3-decimal rounding.
 2. **Event engine.** Strategy interface, fill and cost model, run storage, metrics report,
    one example strategy (moving-average crossover).
+   Done 2026-10-02: run 1 (SPY 2016-2024) cash and equity match an independent replay of
+   its 4,106 fills plus dividends to the cent.
 3. **Fast path and sweeps.** `signals()` support, parity test, sweep runner with holdout.
 4. **Paper trading.** Alpaca paper broker adapter running the same strategy class live.
 

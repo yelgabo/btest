@@ -23,3 +23,15 @@ uv run pytest
 
 Symbols and history start live in `btest.toml`. Bars are stored under `data/bars/` as Parquet,
 raw and unadjusted; corporate actions and the NYSE calendar live in Postgres.
+
+## Backtests
+
+```sh
+uv run btest run strategies/ma_cross.py SPY --start 2016-01-01 --end 2025-01-01 \
+    -p fast=30 -p slow=390 --slippage-bps 1
+uv run btest report 1                       # rewrite data/reports/run-1.html
+```
+
+A strategy is a Python file with one `btest.strategy.Strategy` subclass. Each run is stored in
+the Postgres `runs` schema (params, git commit, fills, daily equity, metrics) and gets an HTML
+report under `data/reports/`.

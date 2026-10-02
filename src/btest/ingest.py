@@ -2,6 +2,7 @@ import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+import httpx
 import polars as pl
 import psycopg
 
@@ -34,6 +35,25 @@ def sync_actions(conn: psycopg.Connection, source: DataSource, symbol: str,
     log(f"{symbol}: {len(splits)} splits, {len(dividends)} dividends")
 
 
+FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+RISK_FREE_SERIES = "DTB3"
+
+
+def sync_risk_free(conn: psycopg.Connection, start: date) -> None:
+    resp = httpx.get(FRED_CSV, params={"id": RISK_FREE_SERIES, "cosd": start.isoformat()},
+                     timeout=60, follow_redirects=True)
+    resp.raise_for_status()
+    rows = []
+    for line in resp.text.splitlines()[1:]:
+        d, _, v = line.partition(",")
+        # FRED leaves holidays blank or writes ".".
+        if v.strip() not in ("", "."):
+            rows.append((date.fromisoformat(d), float(v)))
+    db.upsert_rates(conn, RISK_FREE_SERIES, rows)
+    conn.commit()
+    log(f"risk-free {RISK_FREE_SERIES}: {len(rows)} days through {rows[-1][0]}")
+
+
 def year_chunks(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
     chunks = []
     cur = start
@@ -47,6 +67,7 @@ def year_chunks(start: datetime, end: datetime) -> list[tuple[datetime, datetime
 def ingest(conn: psycopg.Connection, source: DataSource, data_dir: Path,
            symbols: list[str], history_start: date) -> None:
     sessions = sync_calendar(conn, history_start)
+    sync_risk_free(conn, history_start)
     end = (datetime.now(UTC) - SIP_DELAY).replace(second=0, microsecond=0)
     plan = []
     for symbol in symbols:

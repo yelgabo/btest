@@ -3,6 +3,7 @@ from importlib import resources
 
 import polars as pl
 import psycopg
+from psycopg.types.json import Jsonb
 
 from btest.calendar import SESSION_SCHEMA
 from btest.sources.base import Dividend, Split
@@ -97,3 +98,45 @@ def get_sessions(conn: psycopg.Connection, start: date, end: date) -> pl.DataFra
         (start, end),
     ).fetchall()
     return pl.DataFrame(rows, schema=SESSION_SCHEMA, orient="row")
+
+
+def upsert_rates(conn: psycopg.Connection, series: str, rows: list[tuple[date, float]]) -> None:
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO market.rate (series, date, value) VALUES (%s, %s, %s) "
+            "ON CONFLICT (series, date) DO UPDATE SET value = EXCLUDED.value",
+            [(series, d, v) for d, v in rows],
+        )
+
+
+def get_rates(conn: psycopg.Connection, series: str) -> pl.DataFrame:
+    rows = conn.execute(
+        "SELECT date, value FROM market.rate WHERE series = %s ORDER BY date", (series,),
+    ).fetchall()
+    return pl.DataFrame(rows, schema={"date": pl.Date, "rate": pl.Float64}, orient="row")
+
+
+def save_run(conn: psycopg.Connection, run: dict, fills: list, equity: pl.DataFrame) -> int:
+    run_id = conn.execute(
+        "INSERT INTO runs.run (strategy, strategy_sha256, params, symbols, start_ts, end_ts, "
+        "config, git_commit, git_dirty, metrics, benchmark_metrics, duration_s) VALUES "
+        "(%(strategy)s, %(strategy_sha256)s, %(params)s, %(symbols)s, %(start_ts)s, "
+        "%(end_ts)s, %(config)s, %(git_commit)s, %(git_dirty)s, %(metrics)s, "
+        "%(benchmark_metrics)s, %(duration_s)s) RETURNING id",
+        {k: Jsonb(v) if k in JSON_COLS else v for k, v in run.items()},
+    ).fetchone()[0]
+    with conn.cursor() as cur:
+        with cur.copy("COPY runs.fill (run_id, seq, ts, symbol, qty, price, commission, fees, "
+                      "slippage, realized_pnl) FROM STDIN") as cp:
+            for i, f in enumerate(fills):
+                cp.write_row((run_id, i, f.ts, f.symbol, f.qty, f.price, f.commission, f.fees,
+                              f.slippage, f.realized_pnl))
+        with cur.copy("COPY runs.equity (run_id, date, equity, cash, benchmark) "
+                      "FROM STDIN") as cp:
+            for d, e, c, b in equity.select("date", "equity", "cash", "benchmark").iter_rows():
+                cp.write_row((run_id, d, e, c, b))
+    conn.commit()
+    return run_id
+
+
+JSON_COLS = {"params", "config", "metrics", "benchmark_metrics"}
