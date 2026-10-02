@@ -331,18 +331,28 @@ body.full main { max-width: none; padding: 0; }
 .inline-err:empty { display: none; }
 .tree { flex: 1; overflow-y: auto; padding-bottom: 8px; }
 .node {
+    position: relative;
     display: flex; align-items: center; gap: 6px; height: 28px;
-    padding: 0 8px 0 calc(12px + var(--d, 0) * 14px);
+    padding: 0 8px 0 calc(12px + var(--d, 0) * 20px);
     cursor: pointer; color: var(--dim); font-size: 14px; white-space: nowrap;
     border-left: 2px solid transparent;
 }
+/* Indent guides: one hairline per level, under the parent folder's chevron, like VS Code. */
+.node::before {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 17px;
+    width: calc(var(--d, 0) * 20px);
+    background: repeating-linear-gradient(90deg, var(--rule-2) 0 1px, transparent 1px 20px);
+    pointer-events: none;
+}
+.node.drop, .ex-section.drop { background: rgba(57, 135, 229, 0.18); outline: 1px dashed var(--s1); outline-offset: -1px; }
+.node[draggable="true"]:active { cursor: grabbing; }
 .node:hover { background: var(--panel); color: var(--ink); }
 .node.active { background: var(--panel-2); color: var(--ink); border-left-color: var(--signal); }
 .node:focus-visible { outline-offset: -2px; }
 .node.new { padding: 0 10px; height: auto; }
 .node .label { overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 .node .ver { font-family: var(--mono); font-size: 11px; color: var(--faint); }
-.node .chev { width: 12px; color: var(--faint); font-size: 11px; }
+.node .chev { width: 12px; color: var(--dim); font-size: 13px; text-align: center; }
 .node .acts { display: none; gap: 2px; }
 .node.file:hover .acts, .node.file:focus-within .acts { display: inline-flex; }
 .node.file:hover .ver { display: none; }

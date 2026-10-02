@@ -9,7 +9,7 @@ from btest.parity import compare
 from btest.runner import load_strategy_class
 from btest.sources.base import Dividend, Split
 
-MA = load_strategy_class(ROOT / "strategies" / "ma_cross.py")
+MA = load_strategy_class(ROOT / "strategies" / "trend" / "ma_cross.py")
 
 
 def synthetic(days=40, per_day=60, seed=7):

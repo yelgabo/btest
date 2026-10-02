@@ -355,7 +355,7 @@ async function runsPage() {
                    runs.length > 1 ? compareBtn : null);
     if (!runs.length) {
         return [head, h("section", {class: "panel"}, empty("No backtests yet. Run one from the terminal:",
-            "uv run btest run strategies/ma_cross.py SPY --start 2016-01-01 --end 2025-01-01"))];
+            "uv run btest run strategies/trend/ma_cross.py SPY --start 2016-01-01 --end 2025-01-01"))];
     }
     const m = k => r => r.metrics[k];
     let tableEl;
@@ -647,7 +647,7 @@ async function sweepsPage() {
     const head = h("div", {class: "head"}, h("h1", {}, "Sweeps"), h("span", {class: "count"}, `${sweeps.length}`));
     if (!sweeps.length) {
         return [head, h("section", {class: "panel"}, empty("No sweeps yet. Run one from the terminal:",
-            "uv run btest sweep strategies/ma_cross.py SPY --start 2016-01-01 -g fast=5,10,30 -g slow=60:2340:60"))];
+            "uv run btest sweep strategies/trend/ma_cross.py SPY --start 2016-01-01 -g fast=5,10,30 -g slow=60:2340:60"))];
     }
     const table = sortableTable([
         {key: "id", label: "Sweep", numeric: true, value: x => x.id, cell: x => x.id},

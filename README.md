@@ -27,7 +27,7 @@ raw and unadjusted; corporate actions and the NYSE calendar live in Postgres.
 ## Backtests
 
 ```sh
-uv run btest run strategies/ma_cross.py SPY --start 2016-01-01 --end 2025-01-01 \
+uv run btest run strategies/trend/ma_cross.py SPY --start 2016-01-01 --end 2025-01-01 \
     -p fast=30 -p slow=390 --slippage-bps 1
 uv run btest report 1                       # rewrite data/reports/run-1.html
 ```
@@ -39,8 +39,8 @@ report under `data/reports/`.
 ## Fast path, parity, sweeps
 
 ```sh
-uv run btest parity strategies/ma_cross.py SPY --start 2016-01-01 --end 2025-01-01
-uv run btest sweep strategies/ma_cross.py SPY --start 2016-01-01 \
+uv run btest parity strategies/trend/ma_cross.py SPY --start 2016-01-01 --end 2025-01-01
+uv run btest sweep strategies/trend/ma_cross.py SPY --start 2016-01-01 \
     -g fast=5,10,30,60 -g slow=60:2340:60
 ```
 
@@ -69,7 +69,7 @@ import-strategies` copies `strategies/*.py` into the lab.
 
 | Strategy | Bars | Idea |
 |---|---|---|
-| `ma_cross` | 1m | Fast / slow moving-average crossover |
+| `trend/ma_cross` | 1m | Fast / slow moving-average crossover |
 | `mean_reversion/zscore` | 1m | Buy stretches below the rolling mean, sell on the snap back |
 | `mean_reversion/rsi2` | 1D | Connors RSI(2) pullbacks inside a 200-day uptrend |
 | `trend/sma_200` | 1D | Hold above the moving average, cash below |

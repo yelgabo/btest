@@ -121,7 +121,9 @@ export async function labPage(id, ui) {
         const dirty = drafts.has(it.id);
         const row = h("div", {class: "node file" + (active ? " active" : ""), role: "treeitem",
                               tabindex: active ? 0 : -1, "aria-selected": String(!!active),
-                              style: `--d:${depth}`, "data-id": it.id,
+                              style: `--d:${depth}`, "data-id": it.id, draggable: "true",
+                              ondragstart: ev => startDrag(ev, {type: "file", id: it.id, name: it.name, kind: it.kind}),
+                              ondragend: endDrag,
                               onclick: ev => { if (!ev.target.closest("button,input")) go(it.id); },
                               onkeydown: ev => treeKeys(ev, it)},
             kindIcon(it.kind),
@@ -129,8 +131,10 @@ export async function labPage(id, ui) {
             dirty ? h("span", {class: "dot", title: "Unsaved changes"}) : null,
             h("span", {class: "ver"}, "v" + it.version),
             h("span", {class: "acts"},
-              h("button", {class: "icon", title: "Rename (F2)", "aria-label": `Rename ${it.name}`,
+              h("button", {class: "icon", title: "Rename or move (F2)", "aria-label": `Rename ${it.name}`,
                            onclick: () => startRename(row, it)}, "✎"),
+              h("button", {class: "icon", title: "Duplicate", "aria-label": `Duplicate ${it.name}`,
+                           onclick: () => duplicate(it)}, "⧉"),
               h("button", {class: "icon", title: "Delete", "aria-label": `Delete ${it.name}`,
                            onclick: () => confirmDelete(row, it)}, "×")));
         return row;
@@ -144,7 +148,7 @@ export async function labPage(id, ui) {
         const rows = [];
         for (const [kind, title, addLabel] of SECTIONS) {
             const items = list.filter(it => it.kind === kind && (!q || it.name.includes(q)));
-            rows.push(h("div", {class: "ex-section"}, h("span", {}, title),
+            rows.push(h("div", {class: "ex-section", ...dropTarget(kind, "")}, h("span", {}, title),
                 h("button", {class: "icon", title: addLabel, "aria-label": addLabel, onclick: () => showNewRow(kind)}, "+")));
             if (creating === kind) rows.push(newRow);
             const walk = (node, depth) => {
@@ -152,7 +156,10 @@ export async function labPage(id, ui) {
                     const key = `${kind}:${f.path}`;
                     const open = q || expanded.has(key);
                     rows.push(h("div", {class: "node folder", role: "treeitem", "aria-expanded": String(!!open),
-                                        tabindex: -1, style: `--d:${depth}`,
+                                        tabindex: -1, style: `--d:${depth}`, draggable: "true",
+                                        ondragstart: ev => startDrag(ev, {type: "folder", path: f.path, kind}),
+                                        ondragend: endDrag,
+                                        ...dropTarget(kind, f.path),
                                         onclick: () => toggle(key),
                                         onkeydown: ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(key); } else treeKeys(ev, null); }},
                         h("span", {class: "chev", "aria-hidden": "true"}, open ? "▾" : "▸"),
@@ -169,6 +176,94 @@ export async function labPage(id, ui) {
             }
         }
         treeEl.replaceChildren(...rows);
+    }
+
+    // ---------- moving and duplicating ----------
+
+    let dragging = null;
+
+    function startDrag(ev, item) {
+        dragging = item;
+        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("text/plain", item.name || item.path);
+    }
+
+    function endDrag() {
+        dragging = null;
+        treeEl.querySelectorAll(".drop").forEach(e => e.classList.remove("drop"));
+    }
+
+    function canDrop(kind, target) {
+        if (!dragging || dragging.kind !== kind) return false;
+        if (dragging.type === "file") return folderOf(dragging.name) !== target;
+        const p = dragging.path;
+        return target !== p && !target.startsWith(p + "/") && folderOf(p) !== target;
+    }
+
+    // A folder row or a section header ("" = top level) that accepts drops of the same kind.
+    function dropTarget(kind, target) {
+        return {
+            ondragover: ev => {
+                if (!canDrop(kind, target)) return;
+                ev.preventDefault();
+                ev.currentTarget.classList.add("drop");
+            },
+            ondragleave: ev => ev.currentTarget.classList.remove("drop"),
+            ondrop: ev => {
+                ev.preventDefault();
+                ev.currentTarget.classList.remove("drop");
+                if (canDrop(kind, target)) move(dragging, target);
+            },
+        };
+    }
+
+    async function move(item, target) {
+        const into = target ? target + "/" : "";
+        const moves = item.type === "file"
+            ? [[item.id, into + leaf(item.name)]]
+            : list.filter(x => x.kind === item.kind && x.name.startsWith(item.path + "/"))
+                  .map(x => [x.id, into + leaf(item.path) + x.name.slice(item.path.length)]);
+        try {
+            for (const [id, name] of moves) await write("PATCH", `/api/strategies/${id}`, {name});
+        } catch (e) {
+            showTreeError(e.message);
+        }
+        await refreshAfterMove(target ? `${target}/x` : null, item.kind);
+    }
+
+    async function duplicate(it) {
+        const taken = new Set(list.filter(x => x.kind === it.kind).map(x => x.name));
+        let name = `${it.name}_copy`;
+        for (let k = 2; taken.has(name); k++) name = `${it.name}_copy${k}`;
+        // Copy what the editor shows when it is the open file, unsaved edits included.
+        const code = s && s.id === it.id && drafts.has(it.id)
+            ? drafts.get(it.id).code
+            : (await api(`/api/strategies/${it.id}`)).code;
+        try {
+            const r = await write("POST", "/api/strategies", {name, code, kind: it.kind});
+            go(r.id);
+        } catch (e) { showTreeError(e.message); }
+    }
+
+    async function refreshAfterMove(openPath, kind) {
+        list = await api("/api/strategies");
+        if (openPath) expandTo(openPath, kind);
+        if (s) {
+            const now = list.find(x => x.id === s.id);
+            if (now && now.name !== s.name) {
+                s.name = now.name;
+                expandTo(s.name, s.kind);
+                renderHeader();
+            }
+        }
+        renderTree();
+        renderTabs();
+    }
+
+    function showTreeError(msg) {
+        const e = h("div", {class: "inline-err", role: "alert"}, msg);
+        treeEl.prepend(e);
+        setTimeout(() => e.remove(), 6000);
     }
 
     function toggle(path) {

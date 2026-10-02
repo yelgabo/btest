@@ -8,7 +8,7 @@ from btest.runner import benchmark_equity, load_strategy_class
 
 
 def test_example_strategy_loads_with_defaults():
-    cls = load_strategy_class(ROOT / "strategies" / "ma_cross.py")
+    cls = load_strategy_class(ROOT / "strategies" / "trend" / "ma_cross.py")
     assert cls(fast=10).params["slow"] == 390
     with pytest.raises(ValueError):
         cls(nonsense=1)
