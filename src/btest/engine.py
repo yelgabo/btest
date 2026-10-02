@@ -8,7 +8,7 @@ import polars as pl
 from btest.sources.base import Dividend, Split
 from btest.strategy import Bar, Strategy
 
-SEC_FEE_RATE = 20.60 / 1_000_000
+SEC_FEE_RATE = 20.6e-6
 HISTORY_FIELDS = ("open", "high", "low", "close", "volume")
 
 
