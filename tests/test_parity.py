@@ -67,3 +67,15 @@ def test_parity_catches_a_signal_that_reads_the_next_bar():
     bars, splits, divs = synthetic()
     r = compare(Peeking, {"fast": 5, "slow": 30, "symbol": "X"}, "X", bars, splits, divs, CFG)
     assert not r.ok
+
+
+ZSCORE = load_strategy_class(ROOT / "strategies" / "mean_reversion" / "zscore.py")
+
+
+def test_zscore_fast_path_matches_event_engine_exactly():
+    bars, splits, divs = synthetic()
+    for window, entry, exit_ in [(30, 1.5, 0.0), (60, 2.0, 0.5)]:
+        r = compare(ZSCORE, {"symbol": "X", "window": window, "entry_z": entry, "exit_z": exit_},
+                    "X", bars, splits, divs, CFG)
+        assert r.event_fills > 10
+        assert r.ok, r
