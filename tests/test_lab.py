@@ -18,7 +18,7 @@ SETTINGS = Settings("", "", TEST_DB, None, ["SPY", "META"], date(2016, 1, 1), da
 
 
 def test_inspect_reads_params_and_signals_without_running():
-    info = lab.inspect_code(lab.TEMPLATE)
+    info = lab.inspect_code(lab.EXAMPLE)
     assert info.class_name == "BuyAndHold"
     assert info.params == {"symbol": "SPY", "allocation": 1.0}
     assert info.has_signals and info.error is None
@@ -82,7 +82,7 @@ def testdb():
 
 
 def test_save_versions_and_conflicts(testdb):
-    sid = lab.create(testdb, "trend/demo")
+    sid = lab.create(testdb, "trend/demo", lab.EXAMPLE)
     s = lab.get(testdb, sid)
     assert s["version"] == 1 and s["class_name"] == "BuyAndHold"
     assert lab.save(testdb, sid, s["code"], 1) == 1
@@ -127,7 +127,7 @@ def run_child(job, tmp_path):
 
 def test_child_runs_a_strategy_and_reports_error_lines(testdb, tmp_path):
     synthetic_spy(tmp_path)
-    sid = lab.create(testdb, "child_demo")
+    sid = lab.create(testdb, "child_demo", lab.EXAMPLE)
     s = lab.get(testdb, sid)
     job = {"id": 0, "kind": "run", "strategy_version_id": s["version_id"], "version": 1,
            "name": "child_demo", "code": s["code"],
@@ -171,7 +171,7 @@ def test_web_login_header_guard_and_job_submit(testdb, monkeypatch):
     h = {"X-Btest": "1"}
     sid = c2.post("/api/strategies", json={"name": "web_demo"}, headers=h).json()["id"]
     got = c2.get(f"/api/strategies/{sid}").json()
-    assert got["params"] == {"symbol": "SPY", "allocation": 1.0}
+    assert got["params"] == {"symbol": "SPY", "length": 20, "allocation": 1.0}
     r = c2.post("/api/jobs", headers=h, json={"strategy_id": sid, "kind": "run", "spec": {
         "symbols": "SPY", "start": "2016-01-01", "end": "2025-06-01"}})
     assert r.status_code == 400 and "holdout" in r.json()["error"]
@@ -185,7 +185,7 @@ def test_web_login_header_guard_and_job_submit(testdb, monkeypatch):
 def test_worker_kills_a_job_over_its_time_limit(testdb, tmp_path, monkeypatch):
     from btest import worker
     synthetic_spy(tmp_path)
-    sid = lab.create(testdb, "slow_demo")
+    sid = lab.create(testdb, "slow_demo", lab.EXAMPLE)
     s = lab.get(testdb, sid)
     slow = s["code"].replace("    def on_bar(self, ctx, bar):\n",
                              "    def on_bar(self, ctx, bar):\n        import time; time.sleep(5)\n")

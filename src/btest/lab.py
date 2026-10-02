@@ -19,7 +19,11 @@ NAME_RE = re.compile(r"^[a-z0-9_]+(/[a-z0-9_]+)*$")
 MAX_COMBOS = 5000
 COST_KEYS = {"cash", "slippage_bps", "commission_per_share", "sec_fee_rate", "allow_short"}
 
-TEMPLATE = '''import numpy as np
+# What "New strategy" opens with: every hook and call, commented.
+TEMPLATE = (Path(__file__).parent / "templates" / "strategy_template.py").read_text()
+
+# A minimal working strategy, used by tests.
+EXAMPLE = '''import numpy as np
 
 from btest.strategy import Strategy
 
