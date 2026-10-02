@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>btest architecture</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0b0b0d; color: #f0ece3;
+         font: 15px/1.6 "Avenir Next", Avenir, system-ui, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 32px 20px 64px; min-width: 0; }
+  h1 { font-size: 28px; font-weight: 600; margin: 0 0 6px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 40px 0 4px; }
+  .lede { color: #c0bcb6; max-width: 72ch; margin: 0; }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px;
+         border: 1px solid #a38e68; color: #dec18a; margin-left: 8px; vertical-align: 3px; }
+  .old { background: #fff; border-radius: 10px; overflow-x: auto; }
+  .old img { display: block; width: 100%; min-width: 900px; height: auto; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid #2a2a30; }
+  th { color: #c0bcb6; font-weight: 600; }
+  td:first-child { color: #dec18a; white-space: nowrap; }
+  .tablewrap { overflow-x: auto; }
+  figure img + figcaption, .cap { color: #c0bcb6; font-size: 14px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<main>
+<h1>btest architecture</h1>
+<p class="lede">What talks to what, and where strategy code runs. October 2, 2026.</p>
+<figure id="bt-figure">
+  <style>
+    #bt-figure { margin: 24px 0; min-width: 0; }
+    #bt-figure .diagram-scroll { overflow-x: auto; background: #101013; border-radius: 10px; }
+    #bt-figure svg { display: block; width: 100%; min-width: 1200px; height: auto; }
+    #bt-figure text { font-family: "Avenir Next", Avenir, system-ui, sans-serif; fill: #f0ece3; }
+    #bt-figure .title { font-size: 21px; }
+    #bt-figure .detail { fill: #c0bcb6; font-size: 17px; }
+    #bt-figure .edge-label { fill: #c0bcb6; font-size: 16px; }
+    #bt-figure .note { fill: #c0bcb6; font-size: 15px; }
+    #bt-figure .item { font-size: 13px; }
+    #bt-figure .edge { fill: none; stroke: #dec18a; stroke-width: 1.8; marker-end: url(#bt-arrow); }
+    #bt-figure figcaption { margin-top: 10px; font: 14px/1.6 system-ui, sans-serif; color: #c0bcb6; }
+  </style>
+  <div class="diagram-scroll" tabindex="0" role="region"
+       aria-label="btest architecture, scroll horizontally on small screens">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1130" role="img"
+         aria-labelledby="bt-title bt-desc">
+      <title id="bt-title">btest architecture, October 2026</title>
+      <desc id="bt-desc">
+        The browser talks to the web service, which saves strategy versions and run results in
+        Postgres and enqueues jobs as lab.job rows. The worker claims jobs and spawns a limited
+        child process per job or indicator; children read Parquet bars from the worker's volume
+        and insert results as the restricted btest_runner role. The worker also ingests market
+        data each weekday and serves candles to the web service over the private network. The
+        laptop CLI writes runs through Postgres's public proxy and keeps its own bar copy.
+      </desc>
+      <defs>
+        <marker id="bt-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+                markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10Z" fill="#dec18a"/>
+        </marker>
+      </defs>
+      <rect width="1800" height="1130" fill="#101013"/>
+      <rect x="340" y="60" width="1080" height="950" rx="16" fill="none" stroke="#686158" stroke-width="1.5" stroke-dasharray="9 7"/>
+      <text class="note" x="364" y="92">Railway project "btest": services share a private network</text>
+      <rect x="40" y="150" width="260" height="120" rx="10" fill="#1b1b20" stroke="#686158" stroke-width="1.5"/>
+      <text class="title" x="170.0" y="202.0" text-anchor="middle" font-weight="600">Your browser</text>
+      <text class="detail" x="170.0" y="232.0" text-anchor="middle">Editor, charts, runs</text>
+      <rect x="470" y="150" width="290" height="130" rx="10" fill="#1b1b20" stroke="#686158" stroke-width="1.5"/>
+      <text class="title" x="615.0" y="195.0" text-anchor="middle" font-weight="600">Web service</text>
+      <text class="detail" x="615.0" y="225.0" text-anchor="middle">UI, JSON API, login</text>
+      <text class="detail" x="615.0" y="249.0" text-anchor="middle">Never runs strategy code</text>
+      <path d="M470 400H706A18 66.0 0 0 1 706 532H470A18 66.0 0 0 1 470 400Z" fill="#1b1b20" stroke="#a38e68" stroke-width="1.5"/>
+      <ellipse cx="706" cy="466.0" rx="18" ry="66.0" fill="#25252a" stroke="#a38e68" stroke-width="1.5"/>
+      <text class="title" x="585.0" y="436" text-anchor="middle" font-weight="600">Job queue</text>
+      <rect x="488.0" y="454" width="58" height="32" rx="5" fill="#2c2821" stroke="#dec18a" stroke-width="1.2"/>
+      <text class="item" x="517.0" y="475" text-anchor="middle">jobId</text>
+      <rect x="556.0" y="454" width="58" height="32" rx="5" fill="#2c2821" stroke="#dec18a" stroke-width="1.2"/>
+      <text class="item" x="585.0" y="475" text-anchor="middle">jobId</text>
+      <rect x="624.0" y="454" width="58" height="32" rx="5" fill="#2c2821" stroke="#dec18a" stroke-width="1.2"/>
+      <text class="item" x="653.0" y="475" text-anchor="middle">jobId</text>
+      <text class="note" x="585.0" y="514" text-anchor="middle">rows in lab.job (Postgres)</text>
+      <rect x="470" y="660" width="290" height="130" rx="10" fill="#1b1b20" stroke="#686158" stroke-width="1.5"/>
+      <text class="title" x="615.0" y="705.0" text-anchor="middle" font-weight="600">Worker service</text>
+      <text class="detail" x="615.0" y="735.0" text-anchor="middle">Claims jobs, nightly ingest</text>
+      <text class="detail" x="615.0" y="759.0" text-anchor="middle">Serves candles, indicators</text>
+      <path d="M920 300A150.0 20 0 0 1 1220 300V490A150.0 20 0 0 1 920 490Z" fill="#1b1b20" stroke="#a38e68" stroke-width="1.5"/>
+      <ellipse cx="1070.0" cy="300" rx="150.0" ry="20" fill="#25252a" stroke="#a38e68" stroke-width="1.5"/>
+      <text class="title" x="1070.0" y="360" text-anchor="middle" font-weight="600">Postgres</text>
+      <text class="detail" x="1070.0" y="392" text-anchor="middle">Market data, splits, rates</text>
+      <text class="detail" x="1070.0" y="416" text-anchor="middle">Runs, fills, sweeps</text>
+      <text class="detail" x="1070.0" y="440" text-anchor="middle">Strategy versions, jobs</text>
+      <rect x="948" y="632" width="290" height="130" rx="10" fill="#25252a" stroke="#b4a077" stroke-width="1.5"/>
+      <rect x="934" y="646" width="290" height="130" rx="10" fill="#25252a" stroke="#b4a077" stroke-width="1.5"/>
+      <rect x="920" y="660" width="290" height="130" rx="10" fill="#1b1b20" stroke="#686158" stroke-width="1.5"/>
+      <text class="title" x="1065.0" y="705.0" text-anchor="middle" font-weight="600">Child processes</text>
+      <text class="detail" x="1065.0" y="735.0" text-anchor="middle">One per job or indicator</text>
+      <text class="detail" x="1065.0" y="759.0" text-anchor="middle">Time and memory limits</text>
+      <path d="M920 866A150.0 16 0 0 1 1220 866V974A150.0 16 0 0 1 920 974Z" fill="#1b1b20" stroke="#a38e68" stroke-width="1.5"/>
+      <ellipse cx="1070.0" cy="866" rx="150.0" ry="16" fill="#25252a" stroke="#a38e68" stroke-width="1.5"/>
+      <text class="title" x="1070.0" y="922" text-anchor="middle" font-weight="600">Volume /data</text>
+      <text class="detail" x="1070.0" y="954" text-anchor="middle">Parquet minute bars</text>
+      <rect x="1500" y="370" width="260" height="130" rx="10" fill="#1b1b20" stroke="#686158" stroke-width="1.5"/>
+      <text class="title" x="1630.0" y="415.0" text-anchor="middle" font-weight="600">Your laptop</text>
+      <text class="detail" x="1630.0" y="445.0" text-anchor="middle">btest CLI</text>
+      <text class="detail" x="1630.0" y="469.0" text-anchor="middle">Own Parquet copy</text>
+      <rect x="1480" y="830" width="300" height="130" rx="10" fill="#1b1b20" stroke="#686158" stroke-width="1.5"/>
+      <text class="title" x="1630.0" y="875.0" text-anchor="middle" font-weight="600">Market data APIs</text>
+      <text class="detail" x="1630.0" y="905.0" text-anchor="middle">Alpaca: bars, splits, dividends</text>
+      <text class="detail" x="1630.0" y="929.0" text-anchor="middle">FRED: T-bill rates</text>
+      <path class="edge" d="M300 210H470"/>
+      <text class="edge-label" x="405" y="178" text-anchor="middle">HTTPS +</text>
+      <text class="edge-label" x="405" y="200" text-anchor="middle">login cookie</text>
+      <path class="edge" d="M760 192H1070V280"/>
+      <text class="edge-label" x="915" y="174" text-anchor="middle">Save versions, read runs</text>
+      <path class="edge" d="M588 280V400"/>
+      <text class="edge-label" x="600" y="346" text-anchor="start">Enqueue job</text>
+      <path class="edge" d="M588 660V532"/>
+      <text class="edge-label" x="600" y="590" text-anchor="start">Claim job</text>
+      <text class="edge-label" x="600" y="612" text-anchor="start">(SKIP LOCKED)</text>
+      <path class="edge" d="M740 280V660"/>
+      <text class="edge-label" x="752" y="420" text-anchor="start">Fetch candles,</text>
+      <text class="edge-label" x="752" y="442" text-anchor="start">indicator lines</text>
+      <text class="edge-label" x="752" y="464" text-anchor="start">(private, token)</text>
+      <path class="edge" d="M760 725H920"/>
+      <text class="edge-label" x="840" y="686" text-anchor="middle">Spawn per job</text>
+      <text class="edge-label" x="840" y="708" text-anchor="middle">code on stdin</text>
+      <path class="edge" d="M1080 632V510"/>
+      <text class="edge-label" x="1092" y="556" text-anchor="start">Read splits + rates,</text>
+      <text class="edge-label" x="1092" y="578" text-anchor="start">insert results</text>
+      <text class="edge-label" x="1092" y="600" text-anchor="start">(btest_runner role)</text>
+      <path class="edge" d="M1065 790V850"/>
+      <text class="edge-label" x="1077" y="826" text-anchor="start">Read bars</text>
+      <path class="edge" d="M560 790V920H920"/>
+      <text class="edge-label" x="740" y="902" text-anchor="middle">Append bars (ingest)</text>
+      <path class="edge" d="M505 790V1062H1630V960"/>
+      <text class="edge-label" x="1066" y="1050" text-anchor="middle">Fetch bars, splits, dividends, rates (weekdays 22:00 UTC)</text>
+      <path class="edge" d="M1500 435H1220"/>
+      <text class="edge-label" x="1320" y="404" text-anchor="middle">Results + imports</text>
+      <text class="edge-label" x="1320" y="426" text-anchor="middle">(public TCP proxy)</text>
+      <path class="edge" d="M1630 500V830"/>
+      <text class="edge-label" x="1642" y="656" text-anchor="start">Fetch bars</text>
+      <text class="edge-label" x="1642" y="678" text-anchor="start">(own copy)</text>
+      <text class="note" x="40" y="1104">Stacks = several processes at once. Cylinders = stored data. Queue items = job IDs. Dashed outline = the Railway project.</text>
+    </svg>
+  </div>
+  <figcaption>
+    Strategy code only runs in the child processes, never in the web service. The job queue is a
+    table inside Postgres, drawn apart to show the hand-off. Not drawn: the worker's ingest also
+    writes splits, dividends and coverage to Postgres; paper trading (planned); the CDN scripts
+    the browser loads.
+  </figcaption>
+</figure>
+</main>
+</body>
+</html>

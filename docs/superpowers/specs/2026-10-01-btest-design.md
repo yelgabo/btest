@@ -2,9 +2,11 @@
 
 Status: draft, 2026-10-01. Single user (yelgabo), research and paper trading.
 
-![architecture](2026-10-01-btest-architecture.png)
+![btest architecture: browser and laptop clients, a Railway project with web service, job queue, worker, child processes, Postgres and a bar volume, and market data APIs](2026-10-02-btest-architecture.png)
 
-Diagram source: `2026-10-01-btest-architecture.excalidraw`.
+Diagram source: [`2026-10-02-btest-architecture.html`](2026-10-02-btest-architecture.html) (self-contained
+SVG; the PNG above is its render). It shows the system as deployed on 2026-10-02, which has
+grown past this MVP plan.
 
 ## Goal
 
