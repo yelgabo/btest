@@ -65,6 +65,15 @@ Runs and sweeps are queued in `lab.job` and executed by `btest worker`, each in 
 that connects as the restricted `btest_runner` role and has a time limit. `btest
 import-strategies` copies `strategies/*.py` into the lab.
 
+## Charts
+
+Candlestick charts (TradingView's lightweight-charts) on every run page and in the Chart tab:
+1m to 1D candles on New York session time, split- and dividend-adjusted like the backtests,
+SMA / EMA / Bollinger overlays, and the run's fills as buy and sell markers. Indicators preset
+from a strategy's params are set in minutes, so at 1m they equal what the strategy computed.
+On Railway the web service has no bar files; it proxies `/api/candles` to the worker's private
+bar service (`BTEST_BARS_URL`, shared `BTEST_INTERNAL_TOKEN`).
+
 ## Deployment (Railway)
 
 Project `btest`: `Postgres`, `web` (UI and API) and `worker` (lab jobs, Parquet bars on the
