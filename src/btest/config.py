@@ -17,6 +17,7 @@ class Settings:
     data_dir: Path
     symbols: list[str]
     history_start: date
+    holdout_start: date
 
 
 def load(root: Path = ROOT) -> Settings:
@@ -33,4 +34,5 @@ def load(root: Path = ROOT) -> Settings:
         data_dir=root / cfg.get("data_dir", "data"),
         symbols=list(cfg["symbols"]),
         history_start=cfg["history_start"],
+        holdout_start=cfg["holdout_start"],
     )

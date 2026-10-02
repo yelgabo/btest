@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "duckdb>=1.5.6",
     "httpx>=0.28.1",
+    "numba>=0.68.0",
     "pandas-market-calendars>=5.4.0",
     "polars>=1.44.2",
     "psycopg[binary]>=3.3.6",

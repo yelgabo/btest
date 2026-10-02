@@ -1,3 +1,4 @@
 symbols = ["SPY", "META", "NVDA"]
 history_start = 2016-01-01
 data_dir = "data"
+holdout_start = 2025-01-01

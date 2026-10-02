@@ -112,9 +112,12 @@ The same class runs against the paper broker in phase 2. Only the broker adapter
 
 ## Vectorized fast path
 
-A strategy may also define `signals(arrays, params) -> target_position_array`. The fast path
-computes positions for the whole series at once with numpy, applies the same fill rule
-(shifted one bar) and cost model, and finishes a 10-year run in milliseconds.
+A strategy may also define `signals(self, arrays) -> target_weights` for one symbol. Signals
+are computed for the whole series at once with numpy. A numba-compiled loop then replays the
+event engine's exact fill rules (next-bar open, whole shares, cash cap, slippage, fees, splits,
+dividends), so both paths produce identical fills. A weight change at bar i behaves like
+`ctx.order_target_percent` at bar i. Measured: 13 ms per 9-year SPY run versus 3.7 s for the
+event engine.
 
 A **parameter sweep** runs one strategy many times with different settings, for example a
 moving-average crossover with fast window 5 to 50 and slow window 20 to 200. The sweep
@@ -151,10 +154,13 @@ pandas_market_calendars, pytest. alpaca-py arrives with the paper broker in phas
    Done 2026-10-02: run 1 (SPY 2016-2024) cash and equity match an independent replay of
    its 4,106 fills plus dividends to the cent.
 3. **Fast path and sweeps.** `signals()` support, parity test, sweep runner with holdout.
+   Done 2026-10-02: parity exact (fills and equity) on SPY, NVDA (two splits) and META with
+   fees on; 266-combination sweep in 2.2 s; sweep top row reproduced by the event engine.
+   Sweeps refuse windows that reach the holdout (`holdout_start` in `btest.toml`); `btest run`
+   warns and counts prior holdout runs.
 4. **Paper trading.** Alpaca paper broker adapter running the same strategy class live.
 
 ## Open decisions
 
 - Reporting surface: terminal summary plus HTML report per run, or a notebook. Default:
   terminal summary and a static HTML report.
-- Holdout start date.
