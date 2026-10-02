@@ -62,7 +62,7 @@ code.
 | Store | Holds | Why |
 |---|---|---|
 | Parquet files, `data/bars/symbol=X/year=Y/` | Raw minute bars | Columnar, compressed, loads into numpy/polars arrays in milliseconds through DuckDB. Bars are append-only. |
-| Postgres `market` schema | Symbols (stable internal id, ticker history), splits, dividends, trading calendar | Small relational data that changes and needs constraints. |
+| Postgres `market` schema | Symbols (stable internal id), splits, dividends, trading calendar. Ticker history comes later, when a symbol renames. | Small relational data that changes and needs constraints. |
 | Postgres `runs` schema | Run config, git commit, params, trades, daily equity, metrics, sweep results | Queryable history of every run. |
 
 Size: about 98k regular-session minute bars per symbol per year, so 10 years of 3 symbols is
@@ -75,8 +75,9 @@ Bar timestamps are UTC and mark the bar's open. The calendar comes from
 ## Data loader
 
 Reads raw bars from Parquet, applies split and dividend adjustment factors from Postgres, and
-returns either an event stream (event engine) or aligned arrays (fast path). Adjustment is
-computed as of the backtest end date so the full series is continuous. Raw prices stay
+returns either an event stream (event engine) or aligned arrays (fast path). Adjustment uses
+every stored corporate action, matching Alpaca's `adjustment=all`. Events after the backtest
+window scale the whole window by a constant, so returns are unchanged. Raw prices stay
 available for fill modelling, since real orders fill at raw prices.
 
 ## Event engine
@@ -133,8 +134,8 @@ and the same figures for SPY buy-and-hold over the same window.
 
 ## Stack
 
-Python 3.12+, uv, numpy, polars, DuckDB, psycopg 3, alpaca-py, pandas_market_calendars,
-pytest. Postgres 17 is already running locally on port 5432.
+Python 3.12+, uv, numpy, polars, DuckDB, psycopg 3, httpx (Alpaca market data REST),
+pandas_market_calendars, pytest. alpaca-py arrives with the paper broker in phase 4. Postgres 17 is already running locally on port 5432.
 
 ## Phases
 
