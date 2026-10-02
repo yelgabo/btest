@@ -142,6 +142,8 @@ pandas_market_calendars, pytest. alpaca-py arrives with the paper broker in phas
 1. **Data.** Repo scaffold, Postgres schemas, Alpaca adapter, backfill SPY/META/NVDA from
    2016, daily update command, adjustment check against Alpaca. Done when a local query
    returns adjusted bars that match Alpaca's adjusted series.
+   Done 2026-10-02: SPY within 0.01% of Alpaca (small systematic gap from dividend
+   prior-close definition, cause open), NVDA and META within Alpaca's 3-decimal rounding.
 2. **Event engine.** Strategy interface, fill and cost model, run storage, metrics report,
    one example strategy (moving-average crossover).
 3. **Fast path and sweeps.** `signals()` support, parity test, sweep runner with holdout.
