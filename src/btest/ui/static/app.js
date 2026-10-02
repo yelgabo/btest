@@ -282,6 +282,8 @@ function inkOn(bg) {
 // ---------- shared bits ----------
 
 let refreshers = [];
+// Disposers for widgets that hold resources (charts), run when the page changes.
+let cleanups = [];
 // Charts measure their container, so they draw only after the page is in the document.
 let mounts = [];
 const onMount = f => mounts.push(f);
@@ -530,7 +532,23 @@ async function runPage(id) {
           h("dt", {}, "Strategy SHA-256"), h("dd", {}, r.strategy_sha256.slice(0, 16)),
           h("dt", {}, "Created"), h("dd", {}, r.created_at.replace("T", " ").slice(0, 16) + " UTC"))));
 
-    const nodes = [...head, figs, eqPanel, ddPanel, monthPanel, h("div", {class: "grid2"}, fillsPanel, details)];
+    const pcEl = h("div", {class: "pc"});
+    const pricePanel = h("section", {class: "panel"}, h("h2", {}, "Price chart",
+        h("span", {class: "legend"}, h("span", {style: "--c:#3987e5"}, "▲ buy"), h("span", {style: "--c:#e8833a"}, "▼ sell"))),
+        h("div", {class: "body"}, pcEl));
+    onMount(async () => {
+        const {priceChart, presetsFor} = await import("/static/pricechart.js");
+        const last = new Date(new Date(r.end) - 86400000).toISOString().slice(0, 10);
+        const first = r.start.slice(0, 10);
+        const from = new Date(new Date(last) - 60 * 86400000).toISOString().slice(0, 10);
+        const pc = priceChart(pcEl, {
+            symbol: r.symbols[0], symbols: r.symbols, tf: "15m", start: from < first ? first : from, end: last,
+            minDate: first, runId: r.id, indicators: presetsFor(r.params), storeKey: `run.${r.id}`, visible: 160,
+        }, {h, api, num, int, pct});
+        cleanups.push(pc.destroy);
+    });
+
+    const nodes = [...head, figs, pricePanel, eqPanel, ddPanel, monthPanel, h("div", {class: "grid2"}, fillsPanel, details)];
     const eqChart = {redraw() {}};
     onMount(() => {
         const ec = lineChart(eqEl, eqOpts);
@@ -598,6 +616,25 @@ async function comparePage(ids) {
             h("span", {style: "font-size:13px;color:var(--dim);font-weight:400"}, "● best of these runs")),
           h("div", {class: "tablewrap"}, table)),
     ];
+}
+
+async function chartPage(q) {
+    const cfg = await api("/api/lab");
+    const today = new Date().toISOString().slice(0, 10);
+    const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+    const pcEl = h("div", {class: "pc"});
+    onMount(async () => {
+        const {priceChart} = await import("/static/pricechart.js");
+        const sym = (q.get("symbol") || "SPY").toUpperCase();
+        const pc = priceChart(pcEl, {
+            symbol: cfg.symbols.includes(sym) ? sym : cfg.symbols[0], symbols: cfg.symbols, tf: "1h",
+            start: yearAgo, end: today, minDate: cfg.history_start, visible: 400,
+            indicators: [{type: "sma", len: 20, unit: "c"}, {type: "bb", len: 20, unit: "c", k: 2}],
+        }, {h, api, num, int, pct});
+        cleanups.push(pc.destroy);
+    });
+    return [h("div", {class: "head"}, h("h1", {}, "Chart")),
+            h("section", {class: "panel"}, h("div", {class: "body"}, pcEl))];
 }
 
 async function sweepsPage() {
@@ -833,6 +870,8 @@ async function route() {
     hideTip();
     refreshers = [];
     mounts = [];
+    cleanups.forEach(f => f());
+    cleanups = [];
     const hash = location.hash || "#/strategies";
     const [path, query] = hash.slice(2).split("?");
     const parts = path.split("/");
@@ -851,6 +890,7 @@ async function route() {
             nodes = await labModule.labPage(parts[1] ? +parts[1] : null, {
                 h, api, write, pct, num, int, tone, money, onMount, lineChart});
         } else if (parts[0] === "runs" && parts[1]) nodes = await runPage(+parts[1]);
+        else if (parts[0] === "chart") nodes = await chartPage(new URLSearchParams(query));
         else if (parts[0] === "compare") {
             const ids = new URLSearchParams(query).get("ids")?.split(",").map(Number).filter(Boolean) || [];
             nodes = ids.length ? await comparePage(ids) : [empty("Pick runs to compare on the Runs page.")];

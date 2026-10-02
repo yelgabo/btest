@@ -3,17 +3,19 @@ import hmac
 import json
 import os
 import time
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from importlib import resources
 
+import httpx
 import psycopg
 from starlette.applications import Starlette
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from btest import config, db, lab
+from btest import bars, config, db, lab
 
 STATIC = resources.files("btest.ui") / "static"
 SUMMARY_KEYS = ["total_return", "cagr", "sharpe", "sortino", "max_drawdown", "ann_vol",
@@ -258,6 +260,44 @@ def create_app() -> Starlette:
         with conn() as c:
             return JSON(_clean(lab.recent_jobs(c, request.path_params["id"])))
 
+    bars_url = os.environ.get("BTEST_BARS_URL")
+    bars_token = os.environ.get("BTEST_INTERNAL_TOKEN", "")
+
+    async def candles(request: Request):
+        q = request.query_params
+        args = {k: q.get(k, "") for k in ("symbol", "start", "end", "tf")}
+        try:
+            start, end = bars.check(args["symbol"].upper(), args["start"], args["end"],
+                                    args["tf"], settings.symbols)
+        except ValueError as e:
+            return bad(str(e))
+        if bars_url:
+            # The bars live on the worker's volume; it serves them on the private network.
+            async with httpx.AsyncClient(timeout=60) as client:
+                r = await client.get(f"{bars_url}/bars", params=args,
+                                     headers={"X-Btest-Token": bars_token})
+            return Response(r.content, status_code=r.status_code, media_type="application/json")
+        with conn() as c:
+            sym = args["symbol"].upper()
+            out = bars.candles(settings.data_dir, sym, start, end, args["tf"],
+                               db.get_splits(c, sym), db.get_dividends(c, sym))
+        return JSON(out)
+
+    async def run_fills(request: Request):
+        q = request.query_params
+        try:
+            start = datetime.fromisoformat(q.get("start", "")).replace(tzinfo=UTC)
+            end = datetime.fromisoformat(q.get("end", "")).replace(tzinfo=UTC) + timedelta(days=1)
+        except ValueError:
+            return bad("start and end must be dates.")
+        with conn() as c:
+            rows = c.execute(
+                "SELECT extract(epoch FROM ts)::bigint, symbol, qty, price, realized_pnl "
+                "FROM runs.fill WHERE run_id = %s AND ts >= %s AND ts < %s ORDER BY seq",
+                (request.path_params["id"], start, end),
+            ).fetchall()
+        return JSON(_clean([list(r) for r in rows]))
+
     async def index(request: Request):
         return FileResponse(STATIC / "index.html")
 
@@ -274,8 +314,11 @@ def create_app() -> Starlette:
         Route("/api/strategies/{id:int}/jobs", strategy_jobs),
         Route("/api/jobs", jobs, methods=["POST"]),
         Route("/api/jobs/{id:int}", job_detail),
+        Route("/api/candles", candles),
+        Route("/api/runs/{id:int}/fills", run_fills),
         Mount("/static", StaticFiles(directory=str(STATIC)), name="static"),
     ])
+    app.add_middleware(GZipMiddleware, minimum_size=2000)
     app.add_middleware(RequireHeader)
     password = os.environ.get("BTEST_UI_PASSWORD")
     if password:

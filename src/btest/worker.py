@@ -164,6 +164,42 @@ def ingest_loop(settings, stop: threading.Event) -> None:
         stop.wait(600)
 
 
+def bars_app(settings):
+    """Candles for the web service, which has no bar files of its own. Only reachable on the
+    private network, and only with the shared token."""
+    from starlette.applications import Starlette
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+
+    from btest import bars
+
+    token = os.environ.get("BTEST_INTERNAL_TOKEN", "")
+
+    async def candles(request):
+        if not token or request.headers.get("x-btest-token") != token:
+            return JSONResponse({"error": "Forbidden."}, status_code=403)
+        q = request.query_params
+        symbol = q.get("symbol", "").upper()
+        try:
+            start, end = bars.check(symbol, q.get("start", ""), q.get("end", ""), q.get("tf", ""),
+                                    settings.symbols)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        with psycopg.connect(settings.database_url) as conn:
+            splits, dividends = db.get_splits(conn, symbol), db.get_dividends(conn, symbol)
+        return JSONResponse(bars.candles(settings.data_dir, symbol, start, end, q.get("tf"),
+                                         splits, dividends))
+
+    return Starlette(routes=[Route("/bars", candles)])
+
+
+def serve_bars(settings) -> None:
+    import uvicorn
+    port = int(os.environ.get("BTEST_BARS_PORT", "8081"))
+    # "::" so Railway's IPv6 private network can reach it.
+    uvicorn.run(bars_app(settings), host="::", port=port, log_level="warning")
+
+
 def run(poll_s: float = 1.0) -> None:
     settings = config.load(need_alpaca=False)
     worker = f"{socket.gethostname()}:{os.getpid()}"
@@ -181,6 +217,8 @@ def run(poll_s: float = 1.0) -> None:
             log(f"marked {len(stale)} interrupted job(s) failed")
     stop = threading.Event()
     threading.Thread(target=ingest_loop, args=(settings, stop), daemon=True).start()
+    if os.environ.get("BTEST_INTERNAL_TOKEN"):
+        threading.Thread(target=serve_bars, args=(settings,), daemon=True).start()
     log(f"worker {worker} ready, data in {settings.data_dir}")
     while True:
         try:
