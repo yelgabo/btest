@@ -539,11 +539,8 @@ async function runPage(id) {
     onMount(async () => {
         const {priceChart, presetsFor} = await import("/static/pricechart.js");
         const last = new Date(new Date(r.end) - 86400000).toISOString().slice(0, 10);
-        const first = r.start.slice(0, 10);
-        const from = new Date(new Date(last) - 60 * 86400000).toISOString().slice(0, 10);
         const pc = priceChart(pcEl, {
-            symbol: r.symbols[0], symbols: r.symbols, tf: "15m", start: from < first ? first : from, end: last,
-            minDate: first, runId: r.id, indicators: presetsFor(r.params), storeKey: `run.${r.id}`, visible: 160,
+            symbol: r.symbols[0], symbols: r.symbols, tf: "15m", end: last, minDate: r.start.slice(0, 10), runId: r.id, indicators: presetsFor(r.params), storeKey: `run.${r.id}`, visible: 160,
         }, {h, api, num, int, pct});
         cleanups.push(pc.destroy);
     });
@@ -621,14 +618,13 @@ async function comparePage(ids) {
 async function chartPage(q) {
     const cfg = await api("/api/lab");
     const today = new Date().toISOString().slice(0, 10);
-    const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
     const pcEl = h("div", {class: "pc"});
     onMount(async () => {
         const {priceChart} = await import("/static/pricechart.js");
         const sym = (q.get("symbol") || "SPY").toUpperCase();
         const pc = priceChart(pcEl, {
             symbol: cfg.symbols.includes(sym) ? sym : cfg.symbols[0], symbols: cfg.symbols, tf: "1h",
-            start: yearAgo, end: today, minDate: cfg.history_start, visible: 400,
+            end: today, minDate: cfg.history_start, visible: 400,
             indicators: [{type: "sma", len: 20, unit: "c"}, {type: "bb", len: 20, unit: "c", k: 2}],
         }, {h, api, num, int, pct});
         cleanups.push(pc.destroy);

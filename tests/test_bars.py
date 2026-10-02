@@ -44,9 +44,10 @@ def test_candles_carry_adjustment_factor_for_fills(tmp_path):
 def test_check_rejects_bad_input_and_huge_requests():
     syms = ["SPY"]
     assert bars.check("SPY", "2024-01-01", "2024-02-01", "5m", syms)
+    assert bars.check("SPY", "2024-01-02", "2024-01-02", "1m", syms)
     for args, msg in [(("TSLA", "2024-01-01", "2024-02-01", "5m"), "Symbol"),
                       (("SPY", "2024-01-01", "2024-02-01", "2m"), "Timeframe"),
-                      (("SPY", "2024-02-01", "2024-01-01", "5m"), "before"),
+                      (("SPY", "2024-02-01", "2024-01-01", "5m"), "after"),
                       (("SPY", "2016-01-01", "2025-01-01", "1m"), "candles")]:
         with pytest.raises(ValueError, match=msg):
             bars.check(*args, syms)

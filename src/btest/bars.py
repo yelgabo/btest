@@ -30,8 +30,8 @@ def check(symbol: str, start: str, end: str, tf: str, symbols: list[str]) -> tup
         s, e = date.fromisoformat(start), date.fromisoformat(end)
     except ValueError:
         raise ValueError("Dates must look like 2024-01-31.") from None
-    if s >= e:
-        raise ValueError("From must be before Until.")
+    if s > e:
+        raise ValueError("The start date must not be after the end date.")
     n = estimate(s, e, tf)
     if n > MAX_CANDLES:
         raise ValueError(f"That is about {n:,} candles. Pick a larger timeframe or a shorter "

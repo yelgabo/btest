@@ -69,7 +69,9 @@ import-strategies` copies `strategies/*.py` into the lab.
 
 Candlestick charts (TradingView's lightweight-charts) on every run page and in the Chart tab:
 1m to 1D candles on New York session time, split- and dividend-adjusted like the backtests,
-SMA / EMA / Bollinger overlays, and the run's fills as buy and sell markers. Indicators preset
+SMA / EMA / Bollinger overlays, and the run's fills as buy and sell markers. The chart loads
+about 3,000 candles around the Go to date and fetches more as you scroll toward either edge
+(capped at 400,000 loaded candles per chart). Indicators preset
 from a strategy's params are set in minutes, so at 1m they equal what the strategy computed.
 On Railway the web service has no bar files; it proxies `/api/candles` to the worker's private
 bar service (`BTEST_BARS_URL`, shared `BTEST_INTERNAL_TOKEN`).
