@@ -11,11 +11,11 @@ import polars as pl
 import psycopg
 from psycopg.types.json import Jsonb
 
-from btest import db, loader, metrics
+from btest import bars, db, loader, metrics
 from btest.engine import Config
 from btest.fast import FastResult, Prepared, run_fast
 from btest.ingest import log
-from btest.runner import _git, load_strategy_class
+from btest.runner import _git, load_strategy_class, strategy_timeframe
 
 
 def parse_grid(specs: list[str]) -> dict[str, list]:
@@ -70,10 +70,11 @@ def run_sweep(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, sym
                          f"{holdout_start}. Sweeps must stop at or before it.")
     cls = load_strategy_class(strategy_path)
     splits, dividends = db.get_splits(conn, symbol), db.get_dividends(conn, symbol)
-    bars = loader.load_bars(data_dir, symbol, start, end, splits, dividends)
-    if bars.is_empty():
+    tf = strategy_timeframe(cls)
+    data = bars.aggregate(loader.load_bars(data_dir, symbol, start, end, splits, dividends), tf)
+    if data.is_empty():
         raise SystemExit(f"no bars for {symbol} in {start} to {end}")
-    prep = Prepared(bars, splits, dividends)
+    prep = Prepared(data, splits, dividends)
     rf = db.get_rates(conn, "DTB3")
     keys = list(grid)
     combos = [dict(zip(keys, vals)) for vals in itertools.product(*grid.values())]
@@ -100,7 +101,8 @@ def run_sweep(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, sym
         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
         (f"{label or strategy_path.name}:{cls.__name__}",
          hashlib.sha256(strategy_path.read_bytes()).hexdigest(), symbol, start, end,
-         holdout_start, Jsonb(fixed), Jsonb(grid), Jsonb(config.to_dict()), commit, dirty,
+         holdout_start, Jsonb(fixed), Jsonb(grid), Jsonb(config.to_dict() | {"timeframe": tf}),
+         commit, dirty,
          len(combos), skipped, duration, strategy_version_id),
     ).fetchone()[0]
     with conn.cursor() as cur:

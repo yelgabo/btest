@@ -65,6 +65,15 @@ Runs and sweeps are queued in `lab.job` and executed by `btest worker`, each in 
 that connects as the restricted `btest_runner` role and has a time limit. `btest
 import-strategies` copies `strategies/*.py` into the lab.
 
+## Timeframes
+
+A strategy sets `timeframe = "1D"` (or `5m`, `15m`, `30m`, `1h`; default `1m`). The runner,
+the fast path, sweeps and parity all build those bars from the minute data with the same
+session bucketing as the charts, so windows in `params` count bars of that size, decisions
+happen at each bar's close and orders fill at the next bar's open. Run pages open their chart
+on the strategy's timeframe, where its indicators match exactly. Example:
+`strategies/trend/sma_200.py`.
+
 ## Charts
 
 Candlestick charts (TradingView's lightweight-charts) on every run page and in the Chart tab:

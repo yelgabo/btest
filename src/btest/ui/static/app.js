@@ -375,6 +375,7 @@ async function runsPage() {
         {key: "edit", label: "", cell: r => r.strategy_id ? h("a", {class: "mini-link", href: `#/strategies/${r.strategy_id}`,
             title: "Open this strategy in the editor"}, "edit") : null},
         {key: "symbols", label: "Symbols", cell: r => r.symbols.join(" ")},
+        {key: "tf", label: "Bars", value: r => r.timeframe, cell: r => h("span", {class: "num", style: "font-size:13px"}, r.timeframe)},
         {key: "window", label: "Window", value: r => r.start,
          cell: r => h("span", {class: "num", style: "font-size:13px"}, `${day(r.start)} to ${day(r.end)}`)},
         {key: "params", label: "Params", cell: r => paramPills(r.params, ["symbol"])},
@@ -423,6 +424,7 @@ async function runPage(id) {
           r.strategy_id ? h("a", {class: "mini-link", href: `#/strategies/${r.strategy_id}`}, `Edit strategy (ran v${r.version})`) : null),
         h("div", {style: "display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:-8px 0 18px;color:var(--dim)"},
           h("span", {}, r.symbols.join(" ")),
+          h("span", {class: "pill", title: "Bar size the strategy traded on"}, h("i", {}, "bars "), r.config.timeframe || "1m"),
           h("span", {class: "num", style: "font-size:13px"}, `${day(r.start)} to ${day(r.end)}`),
           paramPills(r.params, ["symbol"])),
     ];
@@ -518,6 +520,7 @@ async function runPage(id) {
     const details = h("section", {class: "panel"}, h("h2", {}, "Run details"), h("div", {class: "body"},
         h("dl", {class: "kv"},
           h("dt", {}, "Strategy file"), h("dd", {}, file),
+          h("dt", {}, "Bars"), h("dd", {}, c.timeframe || "1m"),
           h("dt", {}, "Starting cash"), h("dd", {}, money(c.cash)),
           h("dt", {}, "Slippage"), h("dd", {}, `${c.costs.slippage_bps} bps`),
           h("dt", {}, "Commission"), h("dd", {}, `$${c.costs.commission_per_share}/share`),
@@ -533,6 +536,7 @@ async function runPage(id) {
           h("dt", {}, "Strategy SHA-256"), h("dd", {}, r.strategy_sha256.slice(0, 16)),
           h("dt", {}, "Created"), h("dd", {}, r.created_at.replace("T", " ").slice(0, 16) + " UTC"))));
 
+    const tf = r.config.timeframe || "1m";
     const pcEl = h("div", {class: "pc"});
     const pricePanel = h("section", {class: "panel"}, h("h2", {}, "Price chart",
         h("span", {class: "legend"}, h("span", {style: "--c:#3987e5"}, "▲ buy"), h("span", {style: "--c:#e8833a"}, "▼ sell"))),
@@ -540,8 +544,12 @@ async function runPage(id) {
     onMount(async () => {
         const {priceChart, presetsFor} = await import("/static/pricechart.js");
         const last = new Date(new Date(r.end) - 86400000).toISOString().slice(0, 10);
+        // Open on the strategy's own bars so its indicators and trades line up exactly; minute
+        // strategies open on 15m, which is easier to read and still close.
         const pc = priceChart(pcEl, {
-            symbol: r.symbols[0], symbols: r.symbols, tf: "15m", end: last, minDate: r.start.slice(0, 10), runId: r.id, indicators: presetsFor(r.params), storeKey: `run.${r.id}`, visible: 160,
+            symbol: r.symbols[0], symbols: r.symbols, tf: tf === "1m" ? "15m" : tf, end: last,
+            minDate: r.start.slice(0, 10), exactTf: tf, runId: r.id, indicators: presetsFor(r.params, tf),
+            storeKey: `run.${r.id}`, visible: 160,
         }, {h, api, num, int, pct});
         cleanups.push(pc.destroy);
     });
@@ -822,6 +830,7 @@ async function sweepPage(id) {
         h("div", {class: "head", style: "margin-top:6px"}, h("h1", {}, cls), h("span", {class: "count"}, `sweep ${sw.id}`)),
         h("div", {style: "display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:-8px 0 18px;color:var(--dim)"},
           h("span", {}, sw.symbol),
+          h("span", {class: "pill"}, h("i", {}, "bars "), sw.config.timeframe || "1m"),
           h("span", {class: "num", style: "font-size:13px"}, `${day(sw.start)} to ${day(sw.end)}`),
           h("span", {}, `${int(sw.combos - sw.skipped)} runs in ${num(sw.duration_s, 1)} s, ${sw.skipped} skipped`),
           fixedParams.length ? paramPills(sw.fixed) : null,

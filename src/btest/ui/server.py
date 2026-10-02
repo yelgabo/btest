@@ -63,7 +63,8 @@ def create_app() -> Starlette:
             rows = c.execute(
                 "SELECT r.id, r.created_at, r.strategy, r.symbols, r.start_ts, r.end_ts, r.params, "
                 "r.metrics, r.benchmark_metrics, r.git_commit, r.git_dirty, v.strategy_id, "
-                "v.version FROM runs.run r LEFT JOIN lab.strategy_version v "
+                "v.version, coalesce(r.config->>'timeframe', '1m') "
+                "FROM runs.run r LEFT JOIN lab.strategy_version v "
                 "ON v.id = r.strategy_version_id ORDER BY r.id DESC"
             ).fetchall()
         return JSON(_clean([{
@@ -72,7 +73,7 @@ def create_app() -> Starlette:
             "metrics": {k: r[7].get(k) for k in SUMMARY_KEYS},
             "benchmark": {k: (r[8] or {}).get(k) for k in SUMMARY_KEYS},
             "git_commit": r[9], "git_dirty": r[10], "holdout": r[5] > holdout,
-            "strategy_id": r[11], "version": r[12],
+            "strategy_id": r[11], "version": r[12], "timeframe": r[13],
         } for r in rows]))
 
     async def run_detail(request: Request):

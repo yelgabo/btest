@@ -73,16 +73,19 @@ const store = {
     set(key, value) { try { localStorage.setItem("btest.chart." + key, JSON.stringify(value)); } catch { /* private mode */ } },
 };
 
-// Indicators the strategy itself uses, read from its params. Lengths are in minutes so
-// they stay true to the strategy whatever the candle size.
-export function presetsFor(params) {
+// Indicators the strategy itself uses, read from its params. Params count bars of the
+// strategy's timeframe; they are stored in minutes so they stay true to the strategy whatever
+// the chart's candle size.
+export function presetsFor(params, timeframe = "1m") {
     const p = params || {};
+    const m = TF_MIN[timeframe] || 1;
     if (typeof p.fast === "number" && typeof p.slow === "number") {
-        return [{type: "sma", len: p.fast, unit: "min"}, {type: "sma", len: p.slow, unit: "min"}];
+        return [{type: "sma", len: p.fast * m, unit: "min"}, {type: "sma", len: p.slow * m, unit: "min"}];
     }
     if (typeof p.window === "number" && typeof p.entry_z === "number") {
-        return [{type: "bb", len: p.window, unit: "min", k: p.entry_z}];
+        return [{type: "bb", len: p.window * m, unit: "min", k: p.entry_z}];
     }
+    if (typeof p.length === "number") return [{type: "sma", len: p.length * m, unit: "min"}];
     return [{type: "sma", len: 20, unit: "c"}];
 }
 
@@ -97,6 +100,7 @@ export function priceChart(root, opts, ui) {
         indicators: (!opts.freshIndicators && saved.indicators) || opts.indicators,
     };
     const persist = () => store.set(key, st);
+    const exactTf = opts.exactTf || "1m";
     let data = EMPTY(), fills = [], chart = null, candleSeries = null, volSeries = null, markersApi = null;
     let lineSeries = [];
     let loadToken = 0;
@@ -175,12 +179,15 @@ export function priceChart(root, opts, ui) {
         indEl.replaceChildren(...st.indicators.map((ind, i) => {
             if (ind.type === "custom") return customChip(ind, i);
             const color = ind.type === "bb" ? BAND : LINE_COLORS[i % LINE_COLORS.length];
-            const lenInput = h("input", {type: "number", min: 1, step: 1, value: ind.len, "aria-label": `${label(ind)} length`,
-                onchange: ev => { const v = +ev.target.value; if (v >= 1) { ind.len = v; persist(); renderInds(); drawIndicators(); } }});
-            const approx = ind.unit === "min" && st.tf !== "1m";
-            return h("span", {class: "pc-chip", style: `--c:${color}`, title: approx
-                ? `${ind.len} minutes ≈ ${periodCandles(ind)} ${st.tf} candles. Switch to 1m to match the strategy exactly.` : null},
-                h("b", {}, label(ind)), lenInput, h("small", {}, ind.unit === "min" ? "min" : "bars"),
+            // Strategy presets are kept in minutes but shown in the strategy's own bars.
+            const per = ind.unit === "min" ? TF_MIN[exactTf] : 1;
+            const lenInput = h("input", {type: "number", min: 1, step: 1, value: ind.len / per, "aria-label": `${label(ind)} length`,
+                onchange: ev => { const v = +ev.target.value; if (v >= 1) { ind.len = v * per; persist(); renderInds(); drawIndicators(); } }});
+            const approx = ind.unit === "min" && st.tf !== exactTf;
+            return h("span", {class: "pc-chip", style: `--c:${color}`, title: ind.unit === "min"
+                ? `${ind.len} minutes = ${periodCandles(ind)} ${st.tf} candles.${approx ? ` Switch to ${exactTf} to match the strategy exactly.` : ""}` : null},
+                h("b", {}, label(ind)), lenInput,
+                h("small", {}, ind.unit !== "min" ? "bars" : exactTf === "1m" ? "min" : `${exactTf} bars`),
                 ind.type === "bb" ? [h("input", {type: "number", min: 0.1, step: 0.1, value: ind.k, "aria-label": "Band width in standard deviations",
                     onchange: ev => { const v = +ev.target.value; if (v > 0) { ind.k = v; persist(); drawIndicators(); } }}), h("small", {}, "σ")] : null,
                 h("button", {class: "icon", "aria-label": `Remove ${label(ind)}`, onclick: () => {
@@ -415,8 +422,8 @@ export function priceChart(root, opts, ui) {
         parts.push(moreLeft ? "Scroll left for older data." : "Start of the data.");
         if (n >= MAX_LOADED) parts.push(`Stopped at ${int(MAX_LOADED)} candles; pick a larger timeframe to see further.`);
         if (opts.runId) parts.push(fills.length ? `${int(fills.length)} fills loaded.` : "No fills in this stretch.");
-        if (st.indicators.some(i => i.unit === "min") && st.tf !== "1m") {
-            parts.push("Strategy indicators are scaled to candles; at 1m they match the strategy exactly.");
+        if (st.indicators.some(i => i.unit === "min") && st.tf !== exactTf) {
+            parts.push(`Strategy indicators are scaled to candles; at ${exactTf} they match the strategy exactly.`);
         }
         parts.push("Prices adjusted for splits and dividends, times in New York.");
         const errs = reportCustom();

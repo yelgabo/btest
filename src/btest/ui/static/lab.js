@@ -448,6 +448,9 @@ export async function labPage(id, ui) {
                     form.symbols = ev.target.checked ? [...new Set([...form.symbols, sym])] : form.symbols.filter(x => x !== sym);
                     saveForm();
                 }}), sym)))),
+            h("div", {class: "fld"}, h("span", {}, "Bars"), h("div", {class: "muted", style: "margin:0"},
+                h("b", {class: "num", style: "color:var(--ink)"}, s.timeframe), " candles, set by ",
+                h("code", {class: "num"}, `timeframe = "${s.timeframe}"`), s.timeframe === "1m" ? " (the default)" : "", " in the code")),
             h("div", {class: "row2"}, field("From", date("start")), field("Until", date("end"))),
             holdoutRow,
             params.length ? h("div", {class: "fld"}, h("span", {}, "Params"), h("div", {class: "params"}, params.map(([k, v]) =>

@@ -9,7 +9,7 @@ from pathlib import Path
 import polars as pl
 import psycopg
 
-from btest import db, loader, metrics
+from btest import bars, db, loader, metrics
 from btest.config import ROOT
 from btest.engine import Config, Engine, Result
 from btest.strategy import Strategy
@@ -27,6 +27,14 @@ def load_strategy_class(path: Path) -> type[Strategy]:
     if len(found) != 1:
         raise SystemExit(f"{path}: expected exactly one Strategy subclass, found {len(found)}")
     return found[0]
+
+
+def strategy_timeframe(cls: type[Strategy]) -> str:
+    tf = getattr(cls, "timeframe", "1m")
+    if tf not in bars.TIMEFRAMES:
+        raise SystemExit(f"{cls.__name__}.timeframe is {tf!r}; use one of "
+                         f"{', '.join(bars.TIMEFRAMES)}.")
+    return tf
 
 
 def daily_close(bars: pl.DataFrame) -> pl.DataFrame:
@@ -60,9 +68,10 @@ def run_backtest(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, 
                  strategy_version_id: int | None = None) -> tuple[int, dict, dict, Result]:
     cls = load_strategy_class(strategy_path)
     strategy = cls(**params)
+    tf = strategy_timeframe(cls)
     splits = {s: db.get_splits(conn, s) for s in symbols}
     dividends = {s: db.get_dividends(conn, s) for s in symbols}
-    data = {s: loader.load_bars(data_dir, s, start, end, splits[s], dividends[s])
+    data = {s: bars.aggregate(loader.load_bars(data_dir, s, start, end, splits[s], dividends[s]), tf)
             for s in symbols}
     for s, df in data.items():
         if df.is_empty():
@@ -94,7 +103,7 @@ def run_backtest(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, 
         "symbols": symbols,
         "start_ts": start,
         "end_ts": end,
-        "config": config.to_dict(),
+        "config": config.to_dict() | {"timeframe": tf},
         "git_commit": commit,
         "git_dirty": dirty,
         "metrics": stats,

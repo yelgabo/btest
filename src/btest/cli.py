@@ -43,8 +43,9 @@ def _fmt(v) -> str:
 PCT_KEYS = {"total_return", "cagr", "ann_vol", "max_drawdown", "exposure", "win_rate"}
 
 
-def print_summary(run_id: int, stats: dict, bench: dict, duration: float) -> None:
-    print(f"run {run_id} ({duration:.1f}s)")
+def print_summary(run_id: int, stats: dict, bench: dict, duration: float,
+                  timeframe: str = "1m") -> None:
+    print(f"run {run_id} ({duration:.1f}s, {timeframe} bars)")
     print(f"{'metric':<20}{'strategy':>16}{'SPY buy+hold':>16}")
     for k in ["total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown",
               "max_drawdown_days", "end_equity", "exposure", "fills", "win_rate", "turnover",
@@ -186,7 +187,8 @@ def main() -> None:
                 conn, settings.data_dir, args.strategy, dict(args.param), args.symbols,
                 _utc(args.start), _utc(args.end), run_config,
             )
-            print_summary(run_id, stats, bench, stats["engine_s"])
+            print_summary(run_id, stats, bench, stats["engine_s"],
+                          getattr(load_strategy_class(args.strategy), "timeframe", "1m"))
             print("report:", write_report(conn, run_id, settings.data_dir / "reports"))
         elif args.cmd == "sweep":
             end = _utc(args.end) if args.end else datetime.combine(

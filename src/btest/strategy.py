@@ -23,6 +23,9 @@ class Strategy:
     dividend-adjusted; fills and cash use raw prices."""
 
     params: dict = {}
+    # Bar size the strategy trades on: 1m, 5m, 15m, 30m, 1h or 1D. Windows in params count bars
+    # of this size, and orders fill at the next bar's open.
+    timeframe: str = "1m"
 
     def __init__(self, **params):
         unknown = set(params) - set(type(self).params)

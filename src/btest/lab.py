@@ -11,6 +11,7 @@ from pathlib import Path
 import psycopg
 from psycopg.types.json import Jsonb
 
+from btest.bars import TIMEFRAMES
 from btest.config import Settings
 from btest.sweep import parse_grid
 
@@ -81,6 +82,7 @@ class Inspection:
     error_line: int | None
     pane: str = "price"
     levels: list | None = None
+    timeframe: str = "1m"
 
 
 def _literal(cls: ast.ClassDef, name: str):
@@ -111,7 +113,8 @@ def inspect_code(code: str, kind: str = "strategy") -> Inspection:
     cls = classes[0]
     values = {}
     for name, rule in (("params", "a literal dict (numbers, strings, booleans)"),
-                       ("pane", '"price" or "own"'), ("levels", "a literal list of numbers")):
+                       ("pane", '"price" or "own"'), ("levels", "a literal list of numbers"),
+                       ("timeframe", 'one of "1m", "5m", "15m", "30m", "1h", "1D"')):
         try:
             values[name], _ = _literal(cls, name)
         except ValueError:
@@ -125,7 +128,12 @@ def inspect_code(code: str, kind: str = "strategy") -> Inspection:
                                        for n in cls.body):
         return Inspection(cls.name, params, False, "Add a compute(self, c) method.", cls.lineno,
                           pane, levels)
-    return Inspection(cls.name, params, has_signals, None, None, pane, levels)
+    timeframe = values["timeframe"] if isinstance(values["timeframe"], str) else "1m"
+    if kind == "strategy" and timeframe not in TIMEFRAMES:
+        return Inspection(cls.name, params, has_signals,
+                          f"timeframe must be one of {', '.join(TIMEFRAMES)}.",
+                          _literal_line(cls, "timeframe"), pane, levels, timeframe)
+    return Inspection(cls.name, params, has_signals, None, None, pane, levels, timeframe)
 
 
 def _literal_line(cls: ast.ClassDef, name: str) -> int | None:
@@ -208,7 +216,7 @@ def get(conn: psycopg.Connection, sid: int, version: int | None = None) -> dict 
     info = inspect_code(row[2], s[4])
     return {
         "id": s[0], "name": s[1], "created_at": s[2], "updated_at": s[3], "kind": s[4],
-        "pane": info.pane, "levels": info.levels or [],
+        "pane": info.pane, "levels": info.levels or [], "timeframe": info.timeframe,
         "version_id": row[0], "version": row[1], "latest": versions[0][1], "code": row[2],
         "class_name": info.class_name, "params": info.params, "has_signals": info.has_signals,
         "parse_error": info.error, "parse_error_line": info.error_line,

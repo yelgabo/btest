@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
+from btest.bars import aggregate
 from btest.engine import Config, Engine
 from btest.fast import Prepared, run_fast
 from btest.sources.base import Dividend, Split
@@ -25,7 +26,9 @@ class ParityReport:
 def compare(cls: type[Strategy], params: dict, symbol: str, bars: pl.DataFrame,
             splits: list[Split], dividends: list[Dividend], config: Config) -> ParityReport:
     """Run both paths on the same bars. Any difference in fills means signals() and on_bar()
-    disagree, most often because signals() reads a value from a later bar."""
+    disagree, most often because signals() reads a value from a later bar. Takes minute bars
+    and groups them into the strategy's timeframe first."""
+    bars = aggregate(bars, getattr(cls, "timeframe", "1m"))
     event = Engine({symbol: bars}, config, {symbol: splits}, {symbol: dividends}).run(cls(**params))
     prep = Prepared(bars, splits, dividends)
     fast = run_fast(prep, cls(**params).signals(prep.arrays), config)

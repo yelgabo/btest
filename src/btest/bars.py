@@ -39,6 +39,37 @@ def check(symbol: str, start: str, end: str, tf: str, symbols: list[str]) -> tup
     return s, e
 
 
+def aggregate(bars: pl.DataFrame, tf: str) -> pl.DataFrame:
+    """Minute bars from loader.load_bars (adjusted, with raw_* columns) grouped into tf bars on
+    New York session time. Each bar is stamped with its first minute; backtests and charts both
+    use this, so they agree on what a 15m or daily bar is."""
+    if tf not in TIMEFRAMES:
+        raise ValueError(f"Timeframe must be one of {', '.join(TIMEFRAMES)}.")
+    n = TIMEFRAMES[tf]
+    if n == 1 or bars.is_empty():
+        return bars
+    if n is None:
+        keyed = bars.with_columns(pl.lit(0).alias("_b"))
+    else:
+        local = pl.col("ts").dt.convert_time_zone(EXCHANGE_TZ)
+        minute = local.dt.hour().cast(pl.Int32) * 60 + local.dt.minute().cast(pl.Int32)
+        keyed = bars.with_columns(((minute - SESSION_OPEN_MIN) // n).alias("_b"))
+    aggs = [
+        pl.col("ts").first(), pl.col("open").first(), pl.col("high").max(), pl.col("low").min(),
+        pl.col("close").last(), pl.col("volume").sum(),
+    ]
+    optional = {
+        "raw_open": pl.col("raw_open").first(), "raw_high": pl.col("raw_high").max(),
+        "raw_low": pl.col("raw_low").min(), "raw_close": pl.col("raw_close").last(),
+        "trades": pl.col("trades").sum(),
+        "vwap": (pl.col("vwap") * pl.col("volume")).sum() / pl.col("volume").sum(),
+        "regular": pl.col("regular").all(),
+    }
+    aggs += [expr.alias(name) for name, expr in optional.items() if name in bars.columns]
+    return (keyed.sort("ts").group_by("date", "_b", maintain_order=True).agg(aggs)
+            .drop("_b").sort("ts"))
+
+
 def candles(data_dir: Path, symbol: str, start: date, end: date, tf: str,
             splits: list[Split], dividends: list[Dividend]) -> dict:
     t0 = datetime.combine(start, datetime.min.time(), UTC)
@@ -46,21 +77,7 @@ def candles(data_dir: Path, symbol: str, start: date, end: date, tf: str,
     bars = loader.load_bars(data_dir, symbol, t0, t1, splits, dividends)
     if bars.is_empty():
         return {"t": [], "o": [], "h": [], "l": [], "c": [], "v": [], "f": []}
-    n = TIMEFRAMES[tf]
-    if n is None:
-        keyed = bars.with_columns(pl.lit(0).alias("_b"))
-    else:
-        local = pl.col("ts").dt.convert_time_zone(EXCHANGE_TZ)
-        minute = local.dt.hour().cast(pl.Int32) * 60 + local.dt.minute().cast(pl.Int32)
-        keyed = bars.with_columns(((minute - SESSION_OPEN_MIN) // n).alias("_b"))
-    out = (
-        keyed.sort("ts").group_by("date", "_b", maintain_order=True).agg(
-            pl.col("ts").first(), pl.col("open").first(), pl.col("high").max(),
-            pl.col("low").min(), pl.col("close").last(), pl.col("volume").sum(),
-            # Adjusted / raw, so the page can place fills (raw prices) on adjusted candles.
-            (pl.col("close").last() / pl.col("raw_close").last()).alias("f"),
-        ).sort("ts")
-    )
+    out = aggregate(bars, tf)
     return {
         "t": (out["ts"].dt.epoch("s")).to_list(),
         "o": out["open"].round(4).to_list(),
@@ -68,5 +85,6 @@ def candles(data_dir: Path, symbol: str, start: date, end: date, tf: str,
         "l": out["low"].round(4).to_list(),
         "c": out["close"].round(4).to_list(),
         "v": out["volume"].round(0).cast(pl.Int64).to_list(),
-        "f": out["f"].round(8).to_list(),
+        # Adjusted / raw, so the page can place fills (raw prices) on adjusted candles.
+        "f": (out["close"] / out["raw_close"]).round(8).to_list(),
     }
