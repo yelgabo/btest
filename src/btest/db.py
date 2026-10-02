@@ -119,11 +119,13 @@ def get_rates(conn: psycopg.Connection, series: str) -> pl.DataFrame:
 def save_run(conn: psycopg.Connection, run: dict, fills: list, equity: pl.DataFrame) -> int:
     run_id = conn.execute(
         "INSERT INTO runs.run (strategy, strategy_sha256, params, symbols, start_ts, end_ts, "
-        "config, git_commit, git_dirty, metrics, benchmark_metrics, duration_s) VALUES "
+        "config, git_commit, git_dirty, metrics, benchmark_metrics, duration_s, "
+        "strategy_version_id) VALUES "
         "(%(strategy)s, %(strategy_sha256)s, %(params)s, %(symbols)s, %(start_ts)s, "
         "%(end_ts)s, %(config)s, %(git_commit)s, %(git_dirty)s, %(metrics)s, "
-        "%(benchmark_metrics)s, %(duration_s)s) RETURNING id",
-        {k: Jsonb(v) if k in JSON_COLS else v for k, v in run.items()},
+        "%(benchmark_metrics)s, %(duration_s)s, %(strategy_version_id)s) RETURNING id",
+        {"strategy_version_id": None}
+        | {k: Jsonb(v) if k in JSON_COLS else v for k, v in run.items()},
     ).fetchone()[0]
     with conn.cursor() as cur:
         with cur.copy("COPY runs.fill (run_id, seq, ts, symbol, qty, price, commission, fees, "

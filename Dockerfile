@@ -7,4 +7,5 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY btest.toml README.md ./
 COPY src ./src
 RUN uv sync --frozen --no-dev
-CMD ["sh", "-c", "uv run --no-sync btest ui --host 0.0.0.0 --port ${PORT:-8765}"]
+# One image, two Railway services: BTEST_ROLE=worker runs jobs, anything else serves the UI.
+CMD ["sh", "-c", "if [ \"$BTEST_ROLE\" = worker ]; then exec uv run --no-sync btest worker; else exec uv run --no-sync btest ui --host 0.0.0.0 --port ${PORT:-8765}; fi"]

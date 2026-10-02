@@ -62,7 +62,8 @@ def fast_metrics(r: FastResult, rf: pl.DataFrame) -> dict:
 
 def run_sweep(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, symbol: str,
               fixed: dict, grid: dict[str, list], start: datetime, end: datetime,
-              holdout_start: date, config: Config) -> tuple[int, pl.DataFrame]:
+              holdout_start: date, config: Config, label: str | None = None,
+              strategy_version_id: int | None = None) -> tuple[int, pl.DataFrame]:
     holdout_ts = datetime.combine(holdout_start, datetime.min.time(), UTC)
     if end > holdout_ts:
         raise SystemExit(f"sweep end {end:%Y-%m-%d} reaches into the holdout, which starts "
@@ -91,16 +92,16 @@ def run_sweep(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, sym
         if i % step == 0 or i == len(combos):
             log(f"sweep [{i}/{len(combos)} {100 * i / len(combos):.0f}%] {skipped} skipped")
     duration = time.perf_counter() - t0
-    commit, dirty = _git()
+    commit, dirty = _git() if strategy_version_id is None else (None, None)
     sweep_id = conn.execute(
         "INSERT INTO runs.sweep (strategy, strategy_sha256, symbol, start_ts, end_ts, "
         "holdout_start, fixed_params, grid, config, git_commit, git_dirty, combos, skipped, "
-        "duration_s) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
-        "RETURNING id",
-        (f"{strategy_path.name}:{cls.__name__}",
+        "duration_s, strategy_version_id) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+        (f"{label or strategy_path.name}:{cls.__name__}",
          hashlib.sha256(strategy_path.read_bytes()).hexdigest(), symbol, start, end,
          holdout_start, Jsonb(fixed), Jsonb(grid), Jsonb(config.to_dict()), commit, dirty,
-         len(combos), skipped, duration),
+         len(combos), skipped, duration, strategy_version_id),
     ).fetchone()[0]
     with conn.cursor() as cur:
         cur.executemany(

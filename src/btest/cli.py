@@ -93,6 +93,9 @@ def main() -> None:
     p_ing.add_argument("symbols", nargs="*", help="defaults to btest.toml symbols")
     p_chk = sub.add_parser("check-adjust", help="compare our adjusted bars with Alpaca's")
     p_chk.add_argument("symbols", nargs="*")
+    sub.add_parser("worker", help="run lab jobs from the website and keep bars current")
+    p_imp = sub.add_parser("import-strategies", help="add strategies/*.py to the website lab")
+    p_imp.add_argument("folder", type=Path, nargs="?", default=Path("strategies"))
     p_ui = sub.add_parser("ui", help="serve the local web UI")
     p_ui.add_argument("--host", default="127.0.0.1")
     p_ui.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8765)))
@@ -130,6 +133,10 @@ def main() -> None:
     _cost_args(p_par)
     args = parser.parse_args()
 
+    if args.cmd == "worker":
+        from btest.worker import run as run_worker
+        run_worker()
+        return
     if args.cmd == "ui":
         import uvicorn
 
@@ -138,12 +145,16 @@ def main() -> None:
         uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning",
                     proxy_headers=True, forwarded_allow_ips="*")
         return
-    settings = config.load()
+    settings = config.load(need_alpaca=args.cmd in ("ingest", "check-adjust"))
     with db.connect(settings.database_url) as conn:
         if args.cmd == "migrate":
             print("applied:", db.migrate(conn) or "nothing new")
             return
         db.migrate(conn)
+        if args.cmd == "import-strategies":
+            from btest import lab
+            print("added:", lab.import_files(conn, args.folder) or "nothing new")
+            return
         if args.cmd == "coverage":
             for symbol in settings.symbols:
                 record_coverage(conn, settings.data_dir, symbol)

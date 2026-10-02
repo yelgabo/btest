@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in | btest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: #0d1118;
+    color: #e7ebf1;
+    font: 15px/1.4 "IBM Plex Sans Condensed", system-ui, sans-serif;
+}
+form {
+    width: min(340px, calc(100vw - 32px));
+    padding: 28px 24px;
+    background: #141a24;
+    border: 1px solid #232c3a;
+    border-radius: 4px;
+}
+h1 { margin: 0 0 18px; font-size: 22px; font-weight: 600; display: flex; align-items: center; }
+h1::before {
+    content: ""; width: 11px; height: 11px; margin-right: 9px; background: #f2b544;
+    clip-path: polygon(0 100%, 50% 0, 100% 100%);
+}
+label { display: block; color: #8b95a7; font-size: 13px; margin-bottom: 6px; }
+input {
+    width: 100%; box-sizing: border-box; padding: 9px 10px; font: inherit; color: #e7ebf1;
+    background: #19202c; border: 1px solid #2e3949; border-radius: 3px;
+}
+input:focus-visible, button:focus-visible { outline: 2px solid #f2b544; outline-offset: 2px; }
+button {
+    margin-top: 16px; width: 100%; padding: 9px; font: inherit; font-weight: 500;
+    color: #0d1118; background: #f2b544; border: 0; border-radius: 3px; cursor: pointer;
+}
+.err { color: #f06a6a; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<form method="post" action="/login">
+    <h1>btest</h1>
+    __ERROR__
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <button type="submit">Sign in</button>
+</form>
+</body>
+</html>

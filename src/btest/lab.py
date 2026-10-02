@@ -1,0 +1,321 @@
+"""Strategies stored in Postgres, and the jobs that run them. Nothing here executes strategy
+code; the web service only parses it."""
+
+import ast
+import hashlib
+import re
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+import psycopg
+from psycopg.types.json import Jsonb
+
+from btest.config import Settings
+from btest.sweep import parse_grid
+
+NAME_RE = re.compile(r"^[a-z0-9_]+(/[a-z0-9_]+)*$")
+MAX_COMBOS = 5000
+COST_KEYS = {"cash", "slippage_bps", "commission_per_share", "sec_fee_rate", "allow_short"}
+
+TEMPLATE = '''import numpy as np
+
+from btest.strategy import Strategy
+
+
+class BuyAndHold(Strategy):
+    """Buys once and holds. Replace on_bar with your own logic."""
+
+    params = {"symbol": "SPY", "allocation": 1.0}
+
+    def on_bar(self, ctx, bar):
+        if bar.symbol == self.params["symbol"] and ctx.position(bar.symbol) == 0:
+            ctx.order_target_percent(bar.symbol, self.params["allocation"])
+
+    def signals(self, a):
+        # Fast path for sweeps: target weight per bar, NaN means no change.
+        w = np.full(len(a["close"]), np.nan)
+        w[0] = self.params["allocation"]
+        return w
+'''
+
+
+@dataclass
+class Inspection:
+    class_name: str | None
+    params: dict
+    has_signals: bool
+    error: str | None
+    error_line: int | None
+
+
+def inspect_code(code: str) -> Inspection:
+    """Read the Strategy subclass, its literal `params` dict and whether it defines signals(),
+    without running the code."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        return Inspection(None, {}, False, f"SyntaxError: {e.msg}", e.lineno)
+    classes = [
+        n for n in tree.body if isinstance(n, ast.ClassDef)
+        and any((isinstance(b, ast.Name) and b.id == "Strategy")
+                or (isinstance(b, ast.Attribute) and b.attr == "Strategy") for b in n.bases)
+    ]
+    if len(classes) != 1:
+        return Inspection(None, {}, False,
+                          f"Expected one class that subclasses Strategy, found {len(classes)}.",
+                          None)
+    cls = classes[0]
+    params: dict = {}
+    for node in cls.body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "params"):
+            try:
+                params = ast.literal_eval(node.value)
+            except ValueError:
+                return Inspection(cls.name, {}, False,
+                                  "params must be a literal dict (numbers, strings, booleans).",
+                                  node.lineno)
+    has_signals = any(isinstance(n, ast.FunctionDef) and n.name == "signals" for n in cls.body)
+    return Inspection(cls.name, params if isinstance(params, dict) else {}, has_signals, None,
+                      None)
+
+
+def sha256(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()
+
+
+def check_name(name: str) -> str:
+    name = name.strip().strip("/").lower()
+    if name.endswith(".py"):
+        name = name[:-3]
+    if not NAME_RE.match(name):
+        raise ValueError("Use lowercase letters, digits and underscores, with / between "
+                         "folders, e.g. trend/ma_cross.")
+    return name
+
+
+def list_strategies(conn: psycopg.Connection) -> list[dict]:
+    rows = conn.execute(
+        "SELECT s.id, s.name, s.updated_at, v.version, "
+        "(SELECT count(*) FROM runs.run r JOIN lab.strategy_version sv "
+        " ON sv.id = r.strategy_version_id WHERE sv.strategy_id = s.id) "
+        "FROM lab.strategy s JOIN LATERAL (SELECT version FROM lab.strategy_version "
+        " WHERE strategy_id = s.id ORDER BY version DESC LIMIT 1) v ON true "
+        "WHERE NOT s.archived ORDER BY s.name"
+    ).fetchall()
+    return [{"id": r[0], "name": r[1], "updated_at": r[2], "version": r[3], "runs": r[4]}
+            for r in rows]
+
+
+def create(conn: psycopg.Connection, name: str, code: str | None = None) -> int:
+    name = check_name(name)
+    exists = conn.execute("SELECT 1 FROM lab.strategy WHERE name = %s AND NOT archived",
+                          (name,)).fetchone()
+    if exists:
+        raise ValueError(f"{name} already exists.")
+    folder_clash = conn.execute(
+        "SELECT name FROM lab.strategy WHERE NOT archived AND (name LIKE %s OR %s LIKE name || '/%%')",
+        (name + "/%", name),
+    ).fetchone()
+    if folder_clash:
+        raise ValueError(f"{name} would clash with {folder_clash[0]}: a name cannot be both a "
+                         "strategy and a folder.")
+    code = TEMPLATE if code is None else code
+    sid = conn.execute("INSERT INTO lab.strategy (name) VALUES (%s) RETURNING id",
+                       (name,)).fetchone()[0]
+    conn.execute("INSERT INTO lab.strategy_version (strategy_id, version, code, sha256) "
+                 "VALUES (%s, 1, %s, %s)", (sid, code, sha256(code)))
+    conn.commit()
+    return sid
+
+
+def get(conn: psycopg.Connection, sid: int, version: int | None = None) -> dict | None:
+    s = conn.execute("SELECT id, name, created_at, updated_at FROM lab.strategy "
+                     "WHERE id = %s AND NOT archived", (sid,)).fetchone()
+    if s is None:
+        return None
+    versions = conn.execute(
+        "SELECT v.id, v.version, v.created_at, v.sha256, "
+        "(SELECT count(*) FROM runs.run r WHERE r.strategy_version_id = v.id) "
+        "FROM lab.strategy_version v WHERE strategy_id = %s ORDER BY version DESC", (sid,),
+    ).fetchall()
+    want = version or versions[0][1]
+    row = conn.execute("SELECT id, version, code FROM lab.strategy_version "
+                       "WHERE strategy_id = %s AND version = %s", (sid, want)).fetchone()
+    if row is None:
+        return None
+    info = inspect_code(row[2])
+    return {
+        "id": s[0], "name": s[1], "created_at": s[2], "updated_at": s[3],
+        "version_id": row[0], "version": row[1], "latest": versions[0][1], "code": row[2],
+        "class_name": info.class_name, "params": info.params, "has_signals": info.has_signals,
+        "parse_error": info.error, "parse_error_line": info.error_line,
+        "versions": [{"id": v[0], "version": v[1], "created_at": v[2], "sha256": v[3],
+                      "runs": v[4]} for v in versions],
+    }
+
+
+def save(conn: psycopg.Connection, sid: int, code: str, base_version: int) -> int:
+    """Store code as a new version. Returns the version now current. Saving identical code is
+    a no-op; saving on top of a stale base is refused so two tabs cannot silently clobber."""
+    latest = conn.execute(
+        "SELECT version, sha256 FROM lab.strategy_version WHERE strategy_id = %s "
+        "ORDER BY version DESC LIMIT 1 FOR UPDATE", (sid,),
+    ).fetchone()
+    if latest is None:
+        raise LookupError(f"No strategy {sid}.")
+    if latest[1] == sha256(code):
+        conn.rollback()
+        return latest[0]
+    if base_version != latest[0]:
+        conn.rollback()
+        raise ValueError(f"Version {latest[0]} was saved since you opened version "
+                         f"{base_version}. Reload to see it before saving.")
+    version = latest[0] + 1
+    conn.execute("INSERT INTO lab.strategy_version (strategy_id, version, code, sha256) "
+                 "VALUES (%s, %s, %s, %s)", (sid, version, code, sha256(code)))
+    conn.execute("UPDATE lab.strategy SET updated_at = now() WHERE id = %s", (sid,))
+    conn.commit()
+    return version
+
+
+def rename(conn: psycopg.Connection, sid: int, name: str) -> None:
+    name = check_name(name)
+    clash = conn.execute(
+        "SELECT name FROM lab.strategy WHERE NOT archived AND id <> %s AND "
+        "(name = %s OR name LIKE %s OR %s LIKE name || '/%%')", (sid, name, name + "/%", name),
+    ).fetchone()
+    if clash:
+        raise ValueError(f"{name} clashes with {clash[0]}.")
+    conn.execute("UPDATE lab.strategy SET name = %s, updated_at = now() WHERE id = %s",
+                 (name, sid))
+    conn.commit()
+
+
+def archive(conn: psycopg.Connection, sid: int) -> None:
+    conn.execute("UPDATE lab.strategy SET archived = true WHERE id = %s", (sid,))
+    conn.commit()
+
+
+def import_files(conn: psycopg.Connection, folder: Path) -> list[str]:
+    """Add each strategies/*.py file that is not in the lab yet, named after its path."""
+    added = []
+    for path in sorted(folder.rglob("*.py")):
+        name = check_name(str(path.relative_to(folder)))
+        if conn.execute("SELECT 1 FROM lab.strategy WHERE name = %s AND NOT archived",
+                        (name,)).fetchone():
+            continue
+        create(conn, name, path.read_text())
+        added.append(name)
+    return added
+
+
+def validate_spec(kind: str, spec: dict, settings: Settings, has_signals: bool) -> dict:
+    """Normalise a run or sweep request from the browser, or raise ValueError with a message
+    the page can show."""
+    if kind not in ("run", "sweep"):
+        raise ValueError("kind must be run or sweep.")
+    out: dict = {}
+    if kind == "run":
+        symbols = spec.get("symbols") or []
+        if isinstance(symbols, str):
+            symbols = [s for s in re.split(r"[\s,]+", symbols) if s]
+    else:
+        symbols = [spec.get("symbol", "")]
+    symbols = [s.upper() for s in symbols]
+    unknown = [s for s in symbols if s not in settings.symbols]
+    if not symbols or unknown:
+        raise ValueError(f"Symbols must come from {', '.join(settings.symbols)}"
+                         + (f"; {', '.join(unknown)} has no data." if unknown else "."))
+    try:
+        start, end = date.fromisoformat(spec["start"]), date.fromisoformat(spec["end"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("Start and end must be dates like 2016-01-01.") from None
+    if start >= end:
+        raise ValueError("Start must be before end.")
+    if start < settings.history_start:
+        raise ValueError(f"Data starts {settings.history_start}.")
+    if kind == "run":
+        if end > settings.holdout_start and not spec.get("spend_holdout"):
+            raise ValueError(f"This window reaches the holdout (from {settings.holdout_start}). "
+                             "Tick 'Use the holdout' if you mean to spend it.")
+        out["symbols"] = symbols
+    else:
+        if end > settings.holdout_start:
+            raise ValueError(f"Sweeps must end on or before {settings.holdout_start}, where "
+                             "the holdout starts.")
+        if not has_signals:
+            raise ValueError("Sweeps use the fast path: add a signals() method first.")
+        out["symbol"] = symbols[0]
+        raw = spec.get("grid") or {}
+        grid_specs = [f"{k}={v}" if isinstance(v, str) else f"{k}={','.join(map(str, v))}"
+                      for k, v in raw.items() if str(v).strip()]
+        if not grid_specs:
+            raise ValueError("Give at least one parameter a list of values to sweep.")
+        try:
+            grid = parse_grid(grid_specs)
+        except SystemExit as e:
+            raise ValueError(str(e)) from None
+        combos = 1
+        for values in grid.values():
+            combos *= len(values)
+        if combos > MAX_COMBOS:
+            raise ValueError(f"{combos:,} combinations; the limit is {MAX_COMBOS:,}.")
+        out["grid"] = grid
+    params = spec.get("params") or {}
+    if not isinstance(params, dict):
+        raise ValueError("params must be an object.")
+    out["params"] = {k: v for k, v in params.items() if kind == "run" or k not in out["grid"]}
+    costs = {k: v for k, v in (spec.get("config") or {}).items() if k in COST_KEYS}
+    for k, v in costs.items():
+        if k == "allow_short":
+            costs[k] = bool(v)
+        elif not isinstance(v, (int, float)) or v < 0:
+            raise ValueError(f"{k} must be a number of at least 0.")
+    out["config"] = costs
+    out["start"], out["end"] = start.isoformat(), end.isoformat()
+    out["spend_holdout"] = bool(spec.get("spend_holdout")) and kind == "run"
+    return out
+
+
+def submit(conn: psycopg.Connection, version_id: int, kind: str, spec: dict) -> int:
+    jid = conn.execute(
+        "INSERT INTO lab.job (kind, strategy_version_id, spec) VALUES (%s, %s, %s) RETURNING id",
+        (kind, version_id, Jsonb(spec)),
+    ).fetchone()[0]
+    conn.commit()
+    return jid
+
+
+def job(conn: psycopg.Connection, jid: int) -> dict | None:
+    r = conn.execute(
+        "SELECT j.id, j.kind, j.status, j.error, j.error_line, j.log, j.run_id, j.sweep_id, "
+        "j.created_at, j.started_at, j.finished_at, j.spec, v.strategy_id, v.version, "
+        "(SELECT count(*) FROM lab.job q WHERE q.status = 'queued' AND q.id < j.id) "
+        "FROM lab.job j JOIN lab.strategy_version v ON v.id = j.strategy_version_id "
+        "WHERE j.id = %s", (jid,),
+    ).fetchone()
+    if r is None:
+        return None
+    return {"id": r[0], "kind": r[1], "status": r[2], "error": r[3], "error_line": r[4],
+            "log": r[5], "run_id": r[6], "sweep_id": r[7], "created_at": r[8],
+            "started_at": r[9], "finished_at": r[10], "spec": r[11], "strategy_id": r[12],
+            "version": r[13], "ahead": r[14]}
+
+
+def recent_jobs(conn: psycopg.Connection, sid: int, limit: int = 15) -> list[dict]:
+    rows = conn.execute(
+        "SELECT j.id, j.kind, j.status, v.version, j.created_at, j.finished_at, j.run_id, "
+        "j.sweep_id, j.error, r.metrics->>'sharpe', r.metrics->>'cagr', "
+        "r.metrics->>'max_drawdown', j.spec "
+        "FROM lab.job j JOIN lab.strategy_version v ON v.id = j.strategy_version_id "
+        "LEFT JOIN runs.run r ON r.id = j.run_id "
+        "WHERE v.strategy_id = %s ORDER BY j.id DESC LIMIT %s", (sid, limit),
+    ).fetchall()
+    return [{"id": r[0], "kind": r[1], "status": r[2], "version": r[3], "created_at": r[4],
+             "finished_at": r[5], "run_id": r[6], "sweep_id": r[7], "error": r[8],
+             "sharpe": None if r[9] is None else float(r[9]),
+             "cagr": None if r[10] is None else float(r[10]),
+             "max_drawdown": None if r[11] is None else float(r[11]), "spec": r[12]}
+            for r in rows]

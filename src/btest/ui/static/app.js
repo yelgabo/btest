@@ -59,9 +59,23 @@ function s(tag, attrs = {}, parent) {
 
 async function api(path) {
     const res = await fetch(path);
+    if (res.status === 401) { location.href = "/login"; throw new Error("Signed out."); }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
         const err = new Error(body.error || `${path} returned ${res.status}`);
+        err.status = res.status;
+        throw err;
+    }
+    return body;
+}
+
+async function write(method, path, payload) {
+    const res = await fetch(path, {method, headers: {"Content-Type": "application/json", "X-Btest": "1"},
+                                   body: payload === undefined ? undefined : JSON.stringify(payload)});
+    if (res.status === 401) { location.href = "/login"; throw new Error("Signed out."); }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const err = new Error(body.error || `${method} ${path} returned ${res.status}`);
         err.status = res.status;
         throw err;
     }
@@ -355,6 +369,8 @@ async function runsPage() {
         {key: "id", label: "Run", numeric: true, value: r => r.id, cell: r => r.id},
         {key: "strategy", label: "Strategy", value: r => r.strategy, tdClass: "strategy",
          cell: r => [strategyName(r.strategy).cls, h("small", {}, strategyName(r.strategy).file)]},
+        {key: "edit", label: "", cell: r => r.strategy_id ? h("a", {class: "mini-link", href: `#/strategies/${r.strategy_id}`,
+            title: "Open this strategy in the editor"}, "edit") : null},
         {key: "symbols", label: "Symbols", cell: r => r.symbols.join(" ")},
         {key: "window", label: "Window", value: r => r.start,
          cell: r => h("span", {class: "num", style: "font-size:13px"}, `${day(r.start)} to ${day(r.end)}`)},
@@ -400,7 +416,8 @@ async function runPage(id) {
         h("div", {class: "head", style: "margin-top:6px"}, h("h1", {}, cls),
           h("span", {class: "count"}, `run ${r.id}`),
           r.holdout ? h("span", {class: "flag"}, "holdout") : null,
-          r.git_dirty ? h("span", {class: "flag quiet"}, "uncommitted") : null),
+          r.git_dirty ? h("span", {class: "flag quiet"}, "uncommitted") : null,
+          r.strategy_id ? h("a", {class: "mini-link", href: `#/strategies/${r.strategy_id}`}, `Edit strategy (ran v${r.version})`) : null),
         h("div", {style: "display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:-8px 0 18px;color:var(--dim)"},
           h("span", {}, r.symbols.join(" ")),
           h("span", {class: "num", style: "font-size:13px"}, `${day(r.start)} to ${day(r.end)}`),
@@ -808,21 +825,32 @@ async function dataPage() {
 
 // ---------- router ----------
 
+let labModule = null;
+let routeToken = 0;
+
 async function route() {
+    const token = ++routeToken;
     hideTip();
     refreshers = [];
     mounts = [];
-    const hash = location.hash || "#/runs";
+    const hash = location.hash || "#/strategies";
     const [path, query] = hash.slice(2).split("?");
     const parts = path.split("/");
     const tab = parts[0] === "compare" ? "runs" : parts[0];
+    const inLab = parts[0] === "strategies";
+    document.body.classList.toggle("full", inLab);
+    if (!inLab && labModule) labModule.leaveLab();
     document.querySelectorAll(".tabs a").forEach(a => {
         if (a.dataset.tab === tab) a.setAttribute("aria-current", "page");
         else a.removeAttribute("aria-current");
     });
     let nodes;
     try {
-        if (parts[0] === "runs" && parts[1]) nodes = await runPage(+parts[1]);
+        if (inLab) {
+            labModule = labModule || await import("/static/lab.js");
+            nodes = await labModule.labPage(parts[1] ? +parts[1] : null, {
+                h, api, write, pct, num, int, tone, money, onMount, lineChart});
+        } else if (parts[0] === "runs" && parts[1]) nodes = await runPage(+parts[1]);
         else if (parts[0] === "compare") {
             const ids = new URLSearchParams(query).get("ids")?.split(",").map(Number).filter(Boolean) || [];
             nodes = ids.length ? await comparePage(ids) : [empty("Pick runs to compare on the Runs page.")];
@@ -835,10 +863,11 @@ async function route() {
             : h("div", {style: "margin-top:8px;color:var(--dim)"}, "Check that Postgres is running and `uv run btest migrate` has been applied.");
         nodes = [h("section", {class: "panel"}, h("div", {class: "empty error"}, err.message, hint))];
     }
+    if (token !== routeToken) return;
     view.replaceChildren(...nodes);
     mounts.forEach(f => f());
     document.title = (view.querySelector("h1")?.textContent || "btest") + " | btest";
-    window.scrollTo(0, 0);
+    if (!inLab) window.scrollTo(0, 0);
 }
 
 async function status() {

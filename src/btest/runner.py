@@ -55,8 +55,9 @@ def _git() -> tuple[str | None, bool | None]:
 
 
 def run_backtest(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, params: dict,
-                 symbols: list[str], start: datetime, end: datetime,
-                 config: Config) -> tuple[int, dict, dict, Result]:
+                 symbols: list[str], start: datetime, end: datetime, config: Config,
+                 label: str | None = None,
+                 strategy_version_id: int | None = None) -> tuple[int, dict, dict, Result]:
     cls = load_strategy_class(strategy_path)
     strategy = cls(**params)
     splits = {s: db.get_splits(conn, s) for s in symbols}
@@ -84,9 +85,10 @@ def run_backtest(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, 
         "exposure": result.exposure, "bars": result.bars, "engine_s": duration,
     }
     bench = metrics.compute(equity.select("date", pl.col("benchmark").alias("equity")), rf)
-    commit, dirty = _git()
+    # Lab strategies are versioned in the database, so the repo commit says nothing about them.
+    commit, dirty = _git() if strategy_version_id is None else (None, None)
     run_id = db.save_run(conn, {
-        "strategy": f"{strategy_path.name}:{cls.__name__}",
+        "strategy": f"{label or strategy_path.name}:{cls.__name__}",
         "strategy_sha256": hashlib.sha256(strategy_path.read_bytes()).hexdigest(),
         "params": strategy.params,
         "symbols": symbols,
@@ -98,5 +100,6 @@ def run_backtest(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, 
         "metrics": stats,
         "benchmark_metrics": bench,
         "duration_s": duration,
+        "strategy_version_id": strategy_version_id,
     }, result.fills, equity)
     return run_id, stats, bench, result

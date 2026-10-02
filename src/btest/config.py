@@ -31,7 +31,7 @@ def load(root: Path = ROOT, need_alpaca: bool = True) -> Settings:
         alpaca_key=os.environ.get("ALPACA_API_KEY", ""),
         alpaca_secret=os.environ.get("ALPACA_SECRET_KEY", ""),
         database_url=os.environ.get("DATABASE_URL", "postgresql://localhost:5432/btest"),
-        data_dir=root / cfg.get("data_dir", "data"),
+        data_dir=Path(os.environ.get("BTEST_DATA_DIR") or root / cfg.get("data_dir", "data")),
         symbols=list(cfg["symbols"]),
         history_start=cfg["history_start"],
         holdout_start=cfg["holdout_start"],

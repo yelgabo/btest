@@ -1,18 +1,19 @@
-import base64
+import hashlib
 import hmac
 import json
 import os
+import time
 from datetime import UTC, date, datetime
 from importlib import resources
 
 import psycopg
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import FileResponse, Response
+from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from btest import config, db
+from btest import config, db, lab
 
 STATIC = resources.files("btest.ui") / "static"
 SUMMARY_KEYS = ["total_return", "cagr", "sharpe", "sortino", "max_drawdown", "ann_vol",
@@ -57,8 +58,10 @@ def create_app() -> Starlette:
     async def runs(request: Request):
         with conn() as c:
             rows = c.execute(
-                "SELECT id, created_at, strategy, symbols, start_ts, end_ts, params, metrics, "
-                "benchmark_metrics, git_commit, git_dirty FROM runs.run ORDER BY id DESC"
+                "SELECT r.id, r.created_at, r.strategy, r.symbols, r.start_ts, r.end_ts, r.params, "
+                "r.metrics, r.benchmark_metrics, r.git_commit, r.git_dirty, v.strategy_id, "
+                "v.version FROM runs.run r LEFT JOIN lab.strategy_version v "
+                "ON v.id = r.strategy_version_id ORDER BY r.id DESC"
             ).fetchall()
         return JSON(_clean([{
             "id": r[0], "created_at": r[1], "strategy": r[2], "symbols": r[3],
@@ -66,6 +69,7 @@ def create_app() -> Starlette:
             "metrics": {k: r[7].get(k) for k in SUMMARY_KEYS},
             "benchmark": {k: (r[8] or {}).get(k) for k in SUMMARY_KEYS},
             "git_commit": r[9], "git_dirty": r[10], "holdout": r[5] > holdout,
+            "strategy_id": r[11], "version": r[12],
         } for r in rows]))
 
     async def run_detail(request: Request):
@@ -73,7 +77,9 @@ def create_app() -> Starlette:
         with conn() as c:
             r = c.execute(
                 "SELECT id, created_at, strategy, strategy_sha256, symbols, start_ts, end_ts, "
-                "params, config, metrics, benchmark_metrics, git_commit, git_dirty, duration_s "
+                "params, config, metrics, benchmark_metrics, git_commit, git_dirty, duration_s, "
+                "(SELECT strategy_id FROM lab.strategy_version v WHERE v.id = strategy_version_id), "
+                "(SELECT version FROM lab.strategy_version v WHERE v.id = strategy_version_id) "
                 "FROM runs.run WHERE id = %s", (run_id,),
             ).fetchone()
             if r is None:
@@ -92,7 +98,8 @@ def create_app() -> Starlette:
             "id": r[0], "created_at": r[1], "strategy": r[2], "strategy_sha256": r[3],
             "symbols": r[4], "start": r[5], "end": r[6], "params": r[7], "config": r[8],
             "metrics": r[9], "benchmark": r[10] or {}, "git_commit": r[11], "git_dirty": r[12],
-            "duration_s": r[13], "holdout": r[6] > holdout,
+            "duration_s": r[13], "holdout": r[6] > holdout, "strategy_id": r[14],
+            "version": r[15],
             "equity": [[d, round(e, 2), None if b is None else round(b, 2)] for d, e, b in equity],
             "monthly": monthly_returns(equity),
             "fill_count": fill_count,
@@ -166,6 +173,91 @@ def create_app() -> Starlette:
             "risk_free": {"series": "DTB3", "date": rate[0], "value": rate[1]} if rate else None,
         })
 
+    async def body(request: Request) -> dict:
+        try:
+            data = await request.json()
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            raise ValueError("Send a JSON object.")
+        return data
+
+    def bad(msg: str, status: int = 400):
+        return JSON({"error": msg}, status_code=status)
+
+    async def lab_config(request: Request):
+        return JSON({
+            "symbols": settings.symbols, "history_start": settings.history_start,
+            "holdout_start": settings.holdout_start, "template": lab.TEMPLATE,
+            "defaults": {"cash": 100_000.0, "slippage_bps": 1.0, "commission_per_share": 0.0,
+                         "sec_fee_rate": 0.0, "allow_short": False},
+        })
+
+    async def strategies(request: Request):
+        if request.method == "POST":
+            try:
+                data = await body(request)
+                with conn() as c:
+                    sid = lab.create(c, str(data.get("name", "")), data.get("code"))
+            except ValueError as e:
+                return bad(str(e))
+            return JSON({"id": sid}, status_code=201)
+        with conn() as c:
+            return JSON(lab.list_strategies(c))
+
+    async def strategy(request: Request):
+        sid = request.path_params["id"]
+        try:
+            if request.method == "GET":
+                v = request.query_params.get("version")
+                with conn() as c:
+                    s = lab.get(c, sid, int(v) if v and v.isdigit() else None)
+                return JSON(_clean(s)) if s else bad(f"No strategy {sid}.", 404)
+            if request.method == "DELETE":
+                with conn() as c:
+                    lab.archive(c, sid)
+                return JSON({"ok": True})
+            data = await body(request)
+            with conn() as c:
+                if request.method == "PATCH":
+                    lab.rename(c, sid, str(data.get("name", "")))
+                    return JSON({"ok": True})
+                code = data.get("code")
+                if not isinstance(code, str) or len(code) > 200_000:
+                    return bad("code must be text under 200 kB.")
+                version = lab.save(c, sid, code, int(data.get("base_version", 0)))
+                return JSON(_clean(lab.get(c, sid, version)))
+        except LookupError as e:
+            return bad(str(e), 404)
+        except ValueError as e:
+            return bad(str(e), 409 if "Reload" in str(e) else 400)
+
+    async def jobs(request: Request):
+        try:
+            data = await body(request)
+            sid, kind = int(data.get("strategy_id", 0)), str(data.get("kind", ""))
+            with conn() as c:
+                s = lab.get(c, sid, data.get("version"))
+                if s is None:
+                    return bad("That strategy or version does not exist.", 404)
+                if s["parse_error"]:
+                    line = f" (line {s['parse_error_line']})" if s["parse_error_line"] else ""
+                    return bad(f"{s['parse_error']}{line}")
+                spec = lab.validate_spec(kind, data.get("spec") or {}, settings, s["has_signals"])
+                jid = lab.submit(c, s["version_id"], kind, spec)
+        except (TypeError, ValueError) as e:
+            return bad(str(e))
+        return JSON({"id": jid}, status_code=201)
+
+    async def job_detail(request: Request):
+        with conn() as c:
+            j = lab.job(c, request.path_params["id"])
+        return JSON(_clean(j)) if j else bad("No such job.", 404)
+
+    async def strategy_jobs(request: Request):
+        with conn() as c:
+            return JSON(_clean(lab.recent_jobs(c, request.path_params["id"])))
+
     async def index(request: Request):
         return FileResponse(STATIC / "index.html")
 
@@ -176,38 +268,121 @@ def create_app() -> Starlette:
         Route("/api/sweeps", sweeps),
         Route("/api/sweeps/{id:int}", sweep_detail),
         Route("/api/data", data),
+        Route("/api/lab", lab_config),
+        Route("/api/strategies", strategies, methods=["GET", "POST"]),
+        Route("/api/strategies/{id:int}", strategy, methods=["GET", "PUT", "PATCH", "DELETE"]),
+        Route("/api/strategies/{id:int}/jobs", strategy_jobs),
+        Route("/api/jobs", jobs, methods=["POST"]),
+        Route("/api/jobs/{id:int}", job_detail),
         Mount("/static", StaticFiles(directory=str(STATIC)), name="static"),
     ])
+    app.add_middleware(RequireHeader)
     password = os.environ.get("BTEST_UI_PASSWORD")
     if password:
-        app.add_middleware(BasicAuth, password=password)
+        app.add_middleware(SessionAuth, password=password)
     return app
 
 
-class BasicAuth:
-    """HTTP basic auth for the deployed UI. Any username; the password comes from
-    BTEST_UI_PASSWORD."""
+SESSION_COOKIE = "btest_session"
+SESSION_DAYS = 14
+MAX_FAILS = 10
+FAIL_WINDOW_S = 15 * 60
+
+
+class SessionAuth:
+    """Login page plus a signed, expiring session cookie. The signing key is derived from
+    BTEST_UI_PASSWORD, so changing the password signs everyone out."""
+
+    OPEN = {"/login", "/favicon.ico"}
 
     def __init__(self, app, password: str):
         self.app = app
         self.password = password.encode()
+        self.key = hashlib.sha256(b"btest-session:" + self.password).digest()
+        self.fails: dict[str, list[float]] = {}
+
+    def sign(self, expires: int) -> str:
+        mac = hmac.new(self.key, str(expires).encode(), hashlib.sha256).hexdigest()
+        return f"{expires}.{mac}"
+
+    def valid(self, cookie: str | None) -> bool:
+        if not cookie or "." not in cookie:
+            return False
+        expires, _, _ = cookie.partition(".")
+        return (expires.isdigit() and int(expires) > time.time()
+                and hmac.compare_digest(cookie, self.sign(int(expires))))
+
+    def throttled(self, ip: str) -> bool:
+        now = time.time()
+        recent = [t for t in self.fails.get(ip, []) if now - t < FAIL_WINDOW_S]
+        self.fails[ip] = recent
+        return len(recent) >= MAX_FAILS
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        header = dict(scope["headers"]).get(b"authorization", b"")
-        ok = False
-        if header.startswith(b"Basic "):
-            try:
-                _, _, pw = base64.b64decode(header[6:]).partition(b":")
-                ok = hmac.compare_digest(pw, self.password)
-            except ValueError:
-                ok = False
-        if ok:
-            return await self.app(scope, receive, send)
-        resp = Response("Password required.", status_code=401,
-                        headers={"WWW-Authenticate": 'Basic realm="btest"'})
-        await resp(scope, receive, send)
+        request = Request(scope, receive)
+        path = scope["path"]
+        if path == "/login":
+            return await self.login(request)(scope, receive, send)
+        if path == "/logout":
+            resp = RedirectResponse("/login", status_code=303)
+            resp.delete_cookie(SESSION_COOKIE)
+            return await resp(scope, receive, send)
+        if not self.valid(request.cookies.get(SESSION_COOKIE)):
+            if path.startswith("/api/"):
+                resp = JSON({"error": "Signed out. Reload the page to sign in."}, status_code=401)
+            else:
+                resp = RedirectResponse("/login", status_code=303)
+            return await resp(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+    def login(self, request: Request):
+        async def handler(scope, receive, send):
+            ip = request.client.host if request.client else "?"
+            error = ""
+            if request.method == "POST":
+                if self.throttled(ip):
+                    resp = HTMLResponse(login_page("Too many wrong passwords. Wait 15 minutes."),
+                                        status_code=429)
+                    return await resp(scope, receive, send)
+                form = await request.form()
+                given = str(form.get("password", "")).encode()
+                if hmac.compare_digest(given, self.password):
+                    self.fails.pop(ip, None)
+                    expires = int(time.time()) + SESSION_DAYS * 86400
+                    resp = RedirectResponse("/", status_code=303)
+                    resp.set_cookie(SESSION_COOKIE, self.sign(expires),
+                                    max_age=SESSION_DAYS * 86400, httponly=True, samesite="strict",
+                                    secure=request.url.scheme == "https")
+                    return await resp(scope, receive, send)
+                self.fails.setdefault(ip, []).append(time.time())
+                error = "That password is wrong."
+            resp = HTMLResponse(login_page(error), status_code=401 if error else 200)
+            await resp(scope, receive, send)
+        return handler
+
+
+class RequireHeader:
+    """Every API write must carry X-Btest. Browsers will not add a custom header to a
+    cross-site request without a CORS preflight, which this server never approves."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (scope["type"] == "http" and scope["method"] not in ("GET", "HEAD", "OPTIONS")
+                and scope["path"].startswith("/api/")
+                and dict(scope["headers"]).get(b"x-btest") != b"1"):
+            resp = JSON({"error": "Missing X-Btest header."}, status_code=403)
+            return await resp(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+
+def login_page(error: str) -> str:
+    template = (STATIC / "login.html").read_text()
+    msg = f'<p class="err" role="alert">{error}</p>' if error else ""
+    return template.replace("__ERROR__", msg)
 
 
 def monthly_returns(equity: list[tuple]) -> list[list]:

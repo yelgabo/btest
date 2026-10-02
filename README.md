@@ -57,13 +57,25 @@ uv run btest ui                             # http://127.0.0.1:8765
 Read-only workbench over the runs and sweeps in Postgres: runs table, run detail (equity,
 drawdown, monthly returns, fills), compare up to four runs, sweep parameter maps, data status.
 
+## Strategy lab (website)
+
+The Strategies tab is an editor: file tree (folders come from `/` in names), tabs, Cmd/Ctrl+P
+to jump, Cmd/Ctrl+S to save (every changed save is a new version), Cmd/Ctrl+Enter to run.
+Runs and sweeps are queued in `lab.job` and executed by `btest worker`, each in a child process
+that connects as the restricted `btest_runner` role and has a time limit. `btest
+import-strategies` copies `strategies/*.py` into the lab.
+
 ## Deployment (Railway)
 
-Project `btest`: a `Postgres` service and a `web` service running the UI from the Dockerfile.
+Project `btest`: `Postgres`, `web` (UI and API) and `worker` (lab jobs, Parquet bars on the
+`/data` volume, nightly ingest at 22:00 UTC on weekdays). One image; `BTEST_ROLE=worker`
+selects the worker.
 
 - Live: https://web-production-584c0.up.railway.app (HTTP basic auth, any username, password
   is `BTEST_UI_PASSWORD` in `.env` and on the web service).
-- Deploy: `railway up --service web --detach`. Not hooked to GitHub; pushing does not deploy.
+- Deploy: `railway up --service web --detach` and `railway up --service worker --detach`.
+  Not hooked to GitHub; pushing does not deploy.
+- The website signs in with `BTEST_UI_PASSWORD` (login page, 14-day cookie).
 - Railway Postgres is the main database. The local CLI writes runs and sweeps to it through
   the public TCP proxy (`DATABASE_URL` in `.env`), so new results appear on the site.
 - Parquet bars stay on this machine. `btest ingest` refreshes `market.coverage`, which the
