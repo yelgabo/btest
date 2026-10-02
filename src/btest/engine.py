@@ -8,6 +8,7 @@ import polars as pl
 from btest.sources.base import Dividend, Split
 from btest.strategy import Bar, Strategy
 
+SEC_FEE_RATE = 20.60 / 1_000_000
 HISTORY_FIELDS = ("open", "high", "low", "close", "volume")
 
 
@@ -15,8 +16,10 @@ HISTORY_FIELDS = ("open", "high", "low", "close", "volume")
 class Costs:
     slippage_bps: float = 1.0
     commission_per_share: float = 0.0
-    # SEC Section 31 fee, charged on sell notional. Set from the current SEC rate when needed.
-    sec_fee_rate: float = 0.0
+    # SEC Section 31 fee on sell notional: $20.60 per $1M from 2026-04-04 (SEC fee rate
+    # advisory, FY2026). Alpaca passes it through on every sale. Older years had other rates;
+    # backtests use today's for all history.
+    sec_fee_rate: float = SEC_FEE_RATE
 
 
 @dataclass(frozen=True)

@@ -23,10 +23,12 @@ def _utc(d: str) -> datetime:
 
 
 def _config(c: dict) -> Config:
+    d = Costs()
     return Config(cash=c.get("cash", 100_000.0), allow_short=c.get("allow_short", False),
-                  costs=Costs(slippage_bps=c.get("slippage_bps", 1.0),
-                              commission_per_share=c.get("commission_per_share", 0.0),
-                              sec_fee_rate=c.get("sec_fee_rate", 0.0)))
+                  costs=Costs(slippage_bps=c.get("slippage_bps", d.slippage_bps),
+                              commission_per_share=c.get("commission_per_share",
+                                                         d.commission_per_share),
+                              sec_fee_rate=c.get("sec_fee_rate", d.sec_fee_rate)))
 
 
 def error_line(tb, path: str) -> int | None:

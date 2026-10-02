@@ -61,7 +61,8 @@ def _cost_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--cash", type=float, default=100_000.0)
     p.add_argument("--slippage-bps", type=float, default=1.0)
     p.add_argument("--commission-per-share", type=float, default=0.0)
-    p.add_argument("--sec-fee-rate", type=float, default=0.0)
+    p.add_argument("--sec-fee-rate", type=float, default=Costs().sec_fee_rate,
+                   help="fraction of sell notional; default is the current SEC rate")
     p.add_argument("--allow-short", action="store_true")
 
 

@@ -17,6 +17,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from btest import bars, config, db, lab
+from btest.engine import Costs
 
 STATIC = resources.files("btest.ui") / "static"
 SUMMARY_KEYS = ["total_return", "cagr", "sharpe", "sortino", "max_drawdown", "ann_vol",
@@ -193,8 +194,9 @@ def create_app() -> Starlette:
         return JSON({
             "symbols": settings.symbols, "history_start": settings.history_start,
             "holdout_start": settings.holdout_start, "template": lab.TEMPLATE,
-            "defaults": {"cash": 100_000.0, "slippage_bps": 1.0, "commission_per_share": 0.0,
-                         "sec_fee_rate": 0.0, "allow_short": False},
+            "defaults": {"cash": 100_000.0, "slippage_bps": Costs().slippage_bps,
+                         "commission_per_share": Costs().commission_per_share,
+                         "sec_fee_rate": Costs().sec_fee_rate, "allow_short": False},
         })
 
     async def strategies(request: Request):

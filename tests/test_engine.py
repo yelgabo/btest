@@ -7,7 +7,7 @@ from btest.engine import Config, Costs, Engine
 from btest.sources.base import Dividend, Split
 from btest.strategy import Strategy
 
-FREE = Config(cash=10_000.0, costs=Costs(slippage_bps=0.0))
+FREE = Config(cash=10_000.0, costs=Costs(slippage_bps=0.0, sec_fee_rate=0.0))
 
 
 def bars(rows, start=datetime(2024, 1, 2, 14, 30, tzinfo=UTC)):
@@ -73,7 +73,7 @@ def test_buy_capped_by_cash_and_shorts_clipped_by_default():
 
 def test_short_allowed_when_enabled():
     data = {"X": bars([(0, 100, 100), (0, 100, 90)])}
-    cfg = Config(cash=10_000.0, costs=Costs(slippage_bps=0.0), allow_short=True)
+    cfg = Config(cash=10_000.0, costs=Costs(slippage_bps=0.0, sec_fee_rate=0.0), allow_short=True)
     res = Engine(data, cfg).run(Script(orders={0: [("X", -10)]}))
     assert res.fills[0].qty == -10
     assert res.equity["equity"][-1] == pytest.approx(10_000 + 10 * 100 - 10 * 90)
@@ -114,3 +114,12 @@ def test_order_target_accounts_for_pending_orders():
     res = Engine(data, FREE).run(Script(orders={0: [("X", 30), ("X", 30)]},
                                         method="order_target"))
     assert [f.qty for f in res.fills] == [30]
+
+
+def test_sec_fee_is_on_by_default_and_only_on_sells():
+    data = {"X": bars([(0, 100, 100), (0, 100, 100), (0, 100, 100)])}
+    cfg = Config(cash=10_000.0, costs=Costs(slippage_bps=0.0))
+    res = Engine(data, cfg).run(Script(orders={0: [("X", 50)], 1: [("X", -50)]}))
+    buy, sell = res.fills
+    assert buy.fees == 0
+    assert sell.fees == pytest.approx(50 * 100 * 20.60 / 1_000_000)
