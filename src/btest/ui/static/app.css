@@ -564,3 +564,16 @@ kbd {
     .pc-legend { font-size: 11px; }
     .pc-row { flex-wrap: wrap; white-space: normal; }
 }
+
+/* Indicators in the lab */
+.ex-section {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 10px 4px 14px; color: var(--dim); font-size: 13px; font-weight: 500;
+}
+.ex-section + .ex-section, .tree-empty + .ex-section { margin-top: 8px; border-top: 1px solid var(--rule); }
+.ico.ind {
+    font-size: 13px; line-height: 12px; color: var(--s4); width: 17px; text-align: center;
+}
+.output.tall { height: min(58vh, 640px); }
+.output.tall .output-body { padding: 8px 12px; }
+.output.tall .pc-chart { height: max(260px, calc(min(58vh, 640px) - 150px)); }

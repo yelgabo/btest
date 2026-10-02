@@ -40,6 +40,38 @@ class BuyAndHold(Strategy):
 '''
 
 
+INDICATOR_TEMPLATE = '''import numpy as np
+
+from btest.indicator import Indicator
+
+
+class RSI(Indicator):
+    """Relative strength index with Wilder's smoothing, 0 to 100."""
+
+    params = {"length": 14}
+    pane = "own"
+    levels = [30, 70]
+
+    def compute(self, c):
+        n = self.params["length"]
+        close = c["close"]
+        delta = np.diff(close, prepend=close[0])
+        gain, loss = np.clip(delta, 0, None), np.clip(-delta, 0, None)
+        rsi = np.full(len(close), np.nan)
+        if len(close) <= n:
+            return {"rsi": rsi}
+        avg_gain, avg_loss = gain[1:n + 1].mean(), loss[1:n + 1].mean()
+        for i in range(n, len(close)):
+            if i > n:
+                avg_gain = (avg_gain * (n - 1) + gain[i]) / n
+                avg_loss = (avg_loss * (n - 1) + loss[i]) / n
+            rsi[i] = 100.0 if avg_loss == 0 else 100 - 100 / (1 + avg_gain / avg_loss)
+        return {"rsi": rsi}
+'''
+
+BASES = {"strategy": "Strategy", "indicator": "Indicator"}
+
+
 @dataclass
 class Inspection:
     class_name: str | None
@@ -47,38 +79,61 @@ class Inspection:
     has_signals: bool
     error: str | None
     error_line: int | None
+    pane: str = "price"
+    levels: list | None = None
 
 
-def inspect_code(code: str) -> Inspection:
-    """Read the Strategy subclass, its literal `params` dict and whether it defines signals(),
-    without running the code."""
+def _literal(cls: ast.ClassDef, name: str):
+    for node in cls.body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name) and node.targets[0].id == name):
+            return ast.literal_eval(node.value), node.lineno
+    return None, None
+
+
+def inspect_code(code: str, kind: str = "strategy") -> Inspection:
+    """Read the Strategy or Indicator subclass and its literal settings (params, and for
+    indicators pane and levels) without running the code."""
+    base = BASES[kind]
     try:
         tree = ast.parse(code)
     except SyntaxError as e:
         return Inspection(None, {}, False, f"SyntaxError: {e.msg}", e.lineno)
     classes = [
         n for n in tree.body if isinstance(n, ast.ClassDef)
-        and any((isinstance(b, ast.Name) and b.id == "Strategy")
-                or (isinstance(b, ast.Attribute) and b.attr == "Strategy") for b in n.bases)
+        and any((isinstance(b, ast.Name) and b.id == base)
+                or (isinstance(b, ast.Attribute) and b.attr == base) for b in n.bases)
     ]
     if len(classes) != 1:
         return Inspection(None, {}, False,
-                          f"Expected one class that subclasses Strategy, found {len(classes)}.",
+                          f"Expected one class that subclasses {base}, found {len(classes)}.",
                           None)
     cls = classes[0]
-    params: dict = {}
+    values = {}
+    for name, rule in (("params", "a literal dict (numbers, strings, booleans)"),
+                       ("pane", '"price" or "own"'), ("levels", "a literal list of numbers")):
+        try:
+            values[name], _ = _literal(cls, name)
+        except ValueError:
+            return Inspection(cls.name, {}, False, f"{name} must be {rule}.",
+                              _literal_line(cls, name))
+    params = values["params"] if isinstance(values["params"], dict) else {}
+    has_signals = any(isinstance(n, ast.FunctionDef) and n.name == "signals" for n in cls.body)
+    pane = values["pane"] if values["pane"] in ("price", "own") else "price"
+    levels = [v for v in (values["levels"] or []) if isinstance(v, (int, float))]
+    if kind == "indicator" and not any(isinstance(n, ast.FunctionDef) and n.name == "compute"
+                                       for n in cls.body):
+        return Inspection(cls.name, params, False, "Add a compute(self, c) method.", cls.lineno,
+                          pane, levels)
+    return Inspection(cls.name, params, has_signals, None, None, pane, levels)
+
+
+def _literal_line(cls: ast.ClassDef, name: str) -> int | None:
     for node in cls.body:
         if (isinstance(node, ast.Assign) and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "params"):
-            try:
-                params = ast.literal_eval(node.value)
-            except ValueError:
-                return Inspection(cls.name, {}, False,
-                                  "params must be a literal dict (numbers, strings, booleans).",
-                                  node.lineno)
-    has_signals = any(isinstance(n, ast.FunctionDef) and n.name == "signals" for n in cls.body)
-    return Inspection(cls.name, params if isinstance(params, dict) else {}, has_signals, None,
-                      None)
+                and isinstance(node.targets[0], ast.Name) and node.targets[0].id == name):
+            return node.lineno
+    return None
 
 
 def sha256(code: str) -> str:
@@ -97,33 +152,38 @@ def check_name(name: str) -> str:
 
 def list_strategies(conn: psycopg.Connection) -> list[dict]:
     rows = conn.execute(
-        "SELECT s.id, s.name, s.updated_at, v.version, "
+        "SELECT s.id, s.name, s.updated_at, v.version, s.kind, "
         "(SELECT count(*) FROM runs.run r JOIN lab.strategy_version sv "
         " ON sv.id = r.strategy_version_id WHERE sv.strategy_id = s.id) "
         "FROM lab.strategy s JOIN LATERAL (SELECT version FROM lab.strategy_version "
         " WHERE strategy_id = s.id ORDER BY version DESC LIMIT 1) v ON true "
-        "WHERE NOT s.archived ORDER BY s.name"
+        "WHERE NOT s.archived ORDER BY s.kind DESC, s.name"
     ).fetchall()
-    return [{"id": r[0], "name": r[1], "updated_at": r[2], "version": r[3], "runs": r[4]}
-            for r in rows]
+    return [{"id": r[0], "name": r[1], "updated_at": r[2], "version": r[3], "kind": r[4],
+             "runs": r[5]} for r in rows]
 
 
-def create(conn: psycopg.Connection, name: str, code: str | None = None) -> int:
+def create(conn: psycopg.Connection, name: str, code: str | None = None,
+           kind: str = "strategy") -> int:
+    if kind not in BASES:
+        raise ValueError("kind must be strategy or indicator.")
     name = check_name(name)
-    exists = conn.execute("SELECT 1 FROM lab.strategy WHERE name = %s AND NOT archived",
-                          (name,)).fetchone()
+    exists = conn.execute("SELECT 1 FROM lab.strategy WHERE name = %s AND kind = %s "
+                          "AND NOT archived", (name, kind)).fetchone()
     if exists:
         raise ValueError(f"{name} already exists.")
     folder_clash = conn.execute(
-        "SELECT name FROM lab.strategy WHERE NOT archived AND (name LIKE %s OR %s LIKE name || '/%%')",
-        (name + "/%", name),
+        "SELECT name FROM lab.strategy WHERE NOT archived AND kind = %s AND "
+        "(name LIKE %s OR %s LIKE name || '/%%')",
+        (kind, name + "/%", name),
     ).fetchone()
     if folder_clash:
         raise ValueError(f"{name} would clash with {folder_clash[0]}: a name cannot be both a "
                          "strategy and a folder.")
-    code = TEMPLATE if code is None else code
-    sid = conn.execute("INSERT INTO lab.strategy (name) VALUES (%s) RETURNING id",
-                       (name,)).fetchone()[0]
+    if code is None:
+        code = TEMPLATE if kind == "strategy" else INDICATOR_TEMPLATE
+    sid = conn.execute("INSERT INTO lab.strategy (name, kind) VALUES (%s, %s) RETURNING id",
+                       (name, kind)).fetchone()[0]
     conn.execute("INSERT INTO lab.strategy_version (strategy_id, version, code, sha256) "
                  "VALUES (%s, 1, %s, %s)", (sid, code, sha256(code)))
     conn.commit()
@@ -131,7 +191,7 @@ def create(conn: psycopg.Connection, name: str, code: str | None = None) -> int:
 
 
 def get(conn: psycopg.Connection, sid: int, version: int | None = None) -> dict | None:
-    s = conn.execute("SELECT id, name, created_at, updated_at FROM lab.strategy "
+    s = conn.execute("SELECT id, name, created_at, updated_at, kind FROM lab.strategy "
                      "WHERE id = %s AND NOT archived", (sid,)).fetchone()
     if s is None:
         return None
@@ -145,9 +205,10 @@ def get(conn: psycopg.Connection, sid: int, version: int | None = None) -> dict 
                        "WHERE strategy_id = %s AND version = %s", (sid, want)).fetchone()
     if row is None:
         return None
-    info = inspect_code(row[2])
+    info = inspect_code(row[2], s[4])
     return {
-        "id": s[0], "name": s[1], "created_at": s[2], "updated_at": s[3],
+        "id": s[0], "name": s[1], "created_at": s[2], "updated_at": s[3], "kind": s[4],
+        "pane": info.pane, "levels": info.levels or [],
         "version_id": row[0], "version": row[1], "latest": versions[0][1], "code": row[2],
         "class_name": info.class_name, "params": info.params, "has_signals": info.has_signals,
         "parse_error": info.error, "parse_error_line": info.error_line,
@@ -183,8 +244,10 @@ def save(conn: psycopg.Connection, sid: int, code: str, base_version: int) -> in
 def rename(conn: psycopg.Connection, sid: int, name: str) -> None:
     name = check_name(name)
     clash = conn.execute(
-        "SELECT name FROM lab.strategy WHERE NOT archived AND id <> %s AND "
-        "(name = %s OR name LIKE %s OR %s LIKE name || '/%%')", (sid, name, name + "/%", name),
+        "SELECT name FROM lab.strategy WHERE NOT archived AND id <> %s "
+        "AND kind = (SELECT kind FROM lab.strategy WHERE id = %s) AND "
+        "(name = %s OR name LIKE %s OR %s LIKE name || '/%%')",
+        (sid, sid, name, name + "/%", name),
     ).fetchone()
     if clash:
         raise ValueError(f"{name} clashes with {clash[0]}.")
@@ -198,15 +261,15 @@ def archive(conn: psycopg.Connection, sid: int) -> None:
     conn.commit()
 
 
-def import_files(conn: psycopg.Connection, folder: Path) -> list[str]:
-    """Add each strategies/*.py file that is not in the lab yet, named after its path."""
+def import_files(conn: psycopg.Connection, folder: Path, kind: str = "strategy") -> list[str]:
+    """Add each .py file under folder that is not in the lab yet, named after its path."""
     added = []
     for path in sorted(folder.rglob("*.py")):
         name = check_name(str(path.relative_to(folder)))
-        if conn.execute("SELECT 1 FROM lab.strategy WHERE name = %s AND NOT archived",
-                        (name,)).fetchone():
+        if conn.execute("SELECT 1 FROM lab.strategy WHERE name = %s AND kind = %s "
+                        "AND NOT archived", (name, kind)).fetchone():
             continue
-        create(conn, name, path.read_text())
+        create(conn, name, path.read_text(), kind)
         added.append(name)
     return added
 

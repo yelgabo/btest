@@ -25,6 +25,14 @@ let keysInstalled = false;
 let current = null;
 
 const leaf = name => name.split("/").pop();
+// Strategies get a "py" badge; indicators a curve glyph, so the tabs tell them apart.
+const kindIcon = kind => {
+    const e = document.createElement("span");
+    e.className = kind === "indicator" ? "ico ind" : "ico py";
+    e.setAttribute("aria-hidden", "true");
+    e.textContent = kind === "indicator" ? "∿" : "py";
+    return e;
+};
 const folderOf = name => name.split("/").slice(0, -1).join("/");
 
 function parseValue(raw) {
@@ -75,7 +83,7 @@ export async function labPage(id, ui) {
         store.set("last", s.id);
         if (!tabs.includes(s.id)) tabs.push(s.id);
         store.set("tabs", tabs);
-        expandTo(s.name);
+        expandTo(s.name, s.kind);
     }
 
     // ---------- explorer ----------
@@ -85,9 +93,11 @@ export async function labPage(id, ui) {
                                  "aria-label": "Filter strategies", oninput: () => renderTree()});
     const newRow = h("div");
 
-    function expandTo(name) {
+    // Folder keys carry the kind, so a strategy folder and an indicator folder with the same
+    // name open and close separately.
+    function expandTo(name, kind) {
         const parts = name.split("/");
-        for (let i = 1; i < parts.length; i++) expanded.add(parts.slice(0, i).join("/"));
+        for (let i = 1; i < parts.length; i++) expanded.add(`${kind}:${parts.slice(0, i).join("/")}`);
         store.set("expanded", [...expanded]);
     }
 
@@ -114,7 +124,7 @@ export async function labPage(id, ui) {
                               style: `--d:${depth}`, "data-id": it.id,
                               onclick: ev => { if (!ev.target.closest("button,input")) go(it.id); },
                               onkeydown: ev => treeKeys(ev, it)},
-            h("span", {class: "ico py", "aria-hidden": "true"}, "py"),
+            kindIcon(it.kind),
             h("span", {class: "label"}, leaf(it.name)),
             dirty ? h("span", {class: "dot", title: "Unsaved changes"}) : null,
             h("span", {class: "ver"}, "v" + it.version),
@@ -126,28 +136,39 @@ export async function labPage(id, ui) {
         return row;
     }
 
+    const SECTIONS = [["strategy", "Strategies", "New strategy"], ["indicator", "Indicators", "New indicator"]];
+    let creating = null;
+
     function renderTree() {
         const q = filterEl.value.trim().toLowerCase();
-        const items = q ? list.filter(it => it.name.includes(q)) : list;
         const rows = [];
-        const walk = (node, depth) => {
-            for (const [name, f] of [...node.folders].sort((a, b) => a[0].localeCompare(b[0]))) {
-                const open = q || expanded.has(f.path);
-                rows.push(h("div", {class: "node folder", role: "treeitem", "aria-expanded": String(!!open),
-                                    tabindex: -1, style: `--d:${depth}`,
-                                    onclick: () => toggle(f.path),
-                                    onkeydown: ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(f.path); } else treeKeys(ev, null); }},
-                    h("span", {class: "chev", "aria-hidden": "true"}, open ? "▾" : "▸"),
-                    h("span", {class: "label"}, name)));
-                if (open) walk(f, depth + 1);
+        for (const [kind, title, addLabel] of SECTIONS) {
+            const items = list.filter(it => it.kind === kind && (!q || it.name.includes(q)));
+            rows.push(h("div", {class: "ex-section"}, h("span", {}, title),
+                h("button", {class: "icon", title: addLabel, "aria-label": addLabel, onclick: () => showNewRow(kind)}, "+")));
+            if (creating === kind) rows.push(newRow);
+            const walk = (node, depth) => {
+                for (const [name, f] of [...node.folders].sort((a, b) => a[0].localeCompare(b[0]))) {
+                    const key = `${kind}:${f.path}`;
+                    const open = q || expanded.has(key);
+                    rows.push(h("div", {class: "node folder", role: "treeitem", "aria-expanded": String(!!open),
+                                        tabindex: -1, style: `--d:${depth}`,
+                                        onclick: () => toggle(key),
+                                        onkeydown: ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(key); } else treeKeys(ev, null); }},
+                        h("span", {class: "chev", "aria-hidden": "true"}, open ? "▾" : "▸"),
+                        h("span", {class: "label"}, name)));
+                    if (open) walk(f, depth + 1);
+                }
+                for (const it of node.files.sort((a, b) => a.name.localeCompare(b.name))) rows.push(fileRow(it, depth));
+            };
+            const before = rows.length;
+            walk(buildTree(items), 0);
+            if (rows.length === before && creating !== kind) {
+                rows.push(h("div", {class: "tree-empty"}, q ? "Nothing matches." : kind === "strategy"
+                    ? "No strategies yet." : "No indicators yet. + makes one from an RSI template."));
             }
-            for (const it of node.files.sort((a, b) => a.name.localeCompare(b.name))) rows.push(fileRow(it, depth));
-        };
-        walk(buildTree(items), 0);
-        treeEl.replaceChildren(...rows);
-        if (!rows.length) {
-            treeEl.append(h("div", {class: "tree-empty"}, q ? "No strategy matches." : "No strategies yet."));
         }
+        treeEl.replaceChildren(...rows);
     }
 
     function toggle(path) {
@@ -176,7 +197,7 @@ export async function labPage(id, ui) {
                 list = await api("/api/strategies");
                 if (s && s.id === it.id) {
                     s.name = list.find(x => x.id === it.id)?.name || s.name;
-                    expandTo(s.name);
+                    expandTo(s.name, s.kind);
                     renderHeader();
                 }
                 renderTree();
@@ -207,29 +228,29 @@ export async function labPage(id, ui) {
         row.querySelector("button.danger").focus();
     }
 
-    function showNewRow() {
-        const prefix = s && folderOf(s.name) ? folderOf(s.name) + "/" : "";
+    function showNewRow(kind = "strategy") {
+        const prefix = s && s.kind === kind && folderOf(s.name) ? folderOf(s.name) + "/" : "";
         const input = h("input", {class: "inline", value: prefix, placeholder: "folder/name",
-                                  "aria-label": "New strategy name"});
+                                  "aria-label": `New ${kind} name`});
         const err = h("div", {class: "inline-err"});
         input.addEventListener("keydown", async ev => {
-            if (ev.key === "Escape") newRow.replaceChildren();
+            if (ev.key === "Escape") { creating = null; renderTree(); }
             if (ev.key !== "Enter") return;
             try {
-                const r = await write("POST", "/api/strategies", {name: input.value});
-                newRow.replaceChildren();
+                const r = await write("POST", "/api/strategies", {name: input.value, kind});
+                creating = null;
                 go(r.id);
             } catch (e) { err.textContent = e.message; }
         });
         newRow.replaceChildren(h("div", {class: "node new"}, input), err);
+        creating = kind;
+        renderTree();
         input.focus();
     }
 
     const explorer = h("aside", {class: "explorer"},
-        h("div", {class: "ex-head"}, h("span", {}, "Strategies"),
-          h("button", {class: "icon", title: "New strategy", "aria-label": "New strategy", onclick: showNewRow}, "+")),
-        h("div", {class: "ex-filter"}, filterEl), newRow, treeEl,
-        h("div", {class: "ex-foot"}, h("kbd", {}, navigator.platform.includes("Mac") ? "⌘P" : "Ctrl+P"), " to jump to a strategy"));
+        h("div", {class: "ex-filter", style: "padding-top:10px"}, filterEl), treeEl,
+        h("div", {class: "ex-foot"}, h("kbd", {}, navigator.platform.includes("Mac") ? "⌘P" : "Ctrl+P"), " to jump to any file"));
 
     function go(sid) {
         location.hash = `#/strategies/${sid}`;
@@ -241,7 +262,7 @@ export async function labPage(id, ui) {
         return [h("div", {class: "lab"}, explorer, h("section", {class: "lab-main"},
             h("div", {class: "empty", style: "margin:auto"},
               h("p", {}, "Create a strategy to start. It opens with a buy-and-hold template you can edit."),
-              h("button", {class: "primary", onclick: showNewRow}, "New strategy"),
+              h("button", {class: "primary", onclick: () => showNewRow("strategy")}, "New strategy"),
               h("p", {style: "margin-top:18px"}, "Or add the files in strategies/ from the terminal:"),
               h("code", {}, "uv run btest import-strategies"))))];
     }
@@ -275,7 +296,7 @@ export async function labPage(id, ui) {
                              onclick: ev => { if (!ev.target.closest("button")) go(t); },
                              onkeydown: ev => { if (ev.key === "Enter") go(t); },
                              onauxclick: ev => { if (ev.button === 1) closeTab(t); }},
-                h("span", {class: "ico py", "aria-hidden": "true"}, "py"), leaf(it.name),
+                kindIcon(it.kind), leaf(it.name),
                 h("button", {class: "close" + (drafts.has(t) ? " dirty" : ""), "aria-label": `Close ${it.name}`,
                              title: drafts.has(t) ? "Unsaved changes are kept" : "Close",
                              onclick: () => closeTab(t)}, drafts.has(t) ? "●" : "×"));
@@ -369,7 +390,10 @@ export async function labPage(id, ui) {
             renderTree();
             renderTabs();
             renderHeader();
-            renderForm();
+            if (s.kind === "indicator") {
+                renderIndInfo();
+                if (!s.parse_error && preview) preview.updateCustom(s.id, s);
+            } else renderForm();
             if (s.parse_error) {
                 showOutput(errorBox(s.parse_error, s.parse_error_line, null));
                 markError(s.parse_error_line);
@@ -482,6 +506,11 @@ export async function labPage(id, ui) {
         let cur;
         try { cur = await save(); } catch { return; }
         if (cur.parse_error) return;
+        if (s.kind === "indicator") {
+            indErrEl.replaceChildren();
+            if (preview) preview.updateCustom(s.id, s);
+            return;
+        }
         clearError();
         const spec = kind === "run"
             ? {symbols: form.symbols, start: form.start, end: form.end, params: form.params, config: form.config, spend_holdout: !!form.spend_holdout}
@@ -578,8 +607,35 @@ export async function labPage(id, ui) {
                        h("td", {class: "n"}, pct(j.max_drawdown))])))));
     }
 
+    // ---------- indicator preview ----------
+
+    const indErrEl = h("div");
+    const indInfoEl = h("div", {class: "runform"});
+    let preview = null;
+
+    function renderIndInfo() {
+        const params = Object.entries(s.params);
+        indInfoEl.replaceChildren(
+            h("p", {class: "muted"}, "Saving redraws the preview below. Add it to any chart from the Add indicator menu."),
+            h("dl", {class: "kv"},
+              h("dt", {}, "Class"), h("dd", {}, s.class_name || "–"),
+              h("dt", {}, "Pane"), h("dd", {}, s.pane === "own" ? "its own, below volume" : "on the candles"),
+              h("dt", {}, "Levels"), h("dd", {}, s.levels.length ? s.levels.join(", ") : "none"),
+              h("dt", {}, "Params"), h("dd", {}, params.length ? params.map(([k, v]) => `${k}=${showValue(v)}`).join(", ") : "none")),
+            h("p", {class: "muted"}, "compute(self, c) gets numpy arrays c[\"open\"], c[\"high\"], c[\"low\"], c[\"close\"], c[\"volume\"] and c[\"t\"] (UTC seconds) and returns {line_name: array}, one value per candle, NaN for none."),
+            h("div", {class: "actions"}, runBtn, h("small", {class: "muted"}, navigator.platform.includes("Mac") ? "⌘↵" : "Ctrl+Enter")));
+    }
+
+    function showIndicatorError(err) {
+        const b = err.body || {};
+        indErrEl.replaceChildren(errorBox(b.error || err.message, b.error_line, b.log));
+        if (b.error_line && !viewing) markError(b.error_line);
+    }
+
     // ---------- layout ----------
 
+    const isInd = s.kind === "indicator";
+    if (isInd) runBtn.textContent = "Preview";
     const nodes = [h("div", {class: "lab"},
         explorer,
         h("section", {class: "lab-main"},
@@ -587,17 +643,24 @@ export async function labPage(id, ui) {
           h("div", {class: "toolbar"}, crumbEl, h("span", {class: "spacer"}), versionSel, saveBtn),
           bannerEl,
           editorEl,
-          h("div", {class: "output"}, h("div", {class: "output-head"}, "Output"), outputEl)),
-        h("aside", {class: "lab-side"},
-          h("section", {}, h("h3", {}, "Run"), formEl),
-          h("details", {class: "sweep", open: store.get("sweepOpen", false), ontoggle: ev => store.set("sweepOpen", ev.target.open)},
-            h("summary", {}, h("h3", {}, "Sweep")), sweepEl),
-          h("section", {}, h("h3", {}, "History"), historyEl)))];
+          isInd
+            ? h("div", {class: "output tall"}, h("div", {class: "output-head"}, "Preview"), h("div", {class: "output-body"}, indErrEl, outputEl))
+            : h("div", {class: "output"}, h("div", {class: "output-head"}, "Output"), outputEl)),
+        isInd
+          ? h("aside", {class: "lab-side"}, h("section", {}, h("h3", {}, "Indicator"), indInfoEl))
+          : h("aside", {class: "lab-side"},
+              h("section", {}, h("h3", {}, "Run"), formEl),
+              h("details", {class: "sweep", open: store.get("sweepOpen", false), ontoggle: ev => store.set("sweepOpen", ev.target.open)},
+                h("summary", {}, h("h3", {}, "Sweep")), sweepEl),
+              h("section", {}, h("h3", {}, "History"), historyEl)))];
 
     renderTabs();
     renderHeader();
-    renderForm();
-    showOutput(h("p", {class: "muted"}, "Run results and errors appear here."));
+    if (isInd) renderIndInfo();
+    else {
+        renderForm();
+        showOutput(h("p", {class: "muted"}, "Run results and errors appear here."));
+    }
 
     onMount(() => {
         cm = window.CodeMirror(editorEl, {
@@ -625,6 +688,24 @@ export async function labPage(id, ui) {
         });
         if (s.parse_error) markError(s.parse_error_line);
         cm.focus();
+        if (isInd) {
+            import("/static/pricechart.js").then(({priceChart}) => {
+                if (token !== page) return;
+                outputEl.classList.add("pc");
+                preview = priceChart(outputEl, {
+                    symbol: "SPY", symbols: labConfig.symbols, tf: "15m", end: new Date().toISOString().slice(0, 10),
+                    minDate: labConfig.history_start, visible: 200, storeKey: `preview.${s.id}`, freshIndicators: true,
+                    lockCustom: s.id,
+                    indicators: [{type: "custom", id: s.id, name: s.name, params: {}, defaults: s.params, pane: s.pane, levels: s.levels}],
+                    onIndicatorError: (id, err) => { if (id === s.id) showIndicatorError(err); },
+                    onIndicatorOk: id => { if (id === s.id) { indErrEl.replaceChildren(); clearError(); } },
+                }, ui);
+                ui.addCleanup?.(preview.destroy);
+            });
+            treeEl.querySelector(".node.active")?.scrollIntoView({block: "nearest"});
+            current = {submit, save: () => save().catch(() => {}), list: () => list};
+            return;
+        }
         const pending = pollers.get(s.id);
         if (pending) follow(pending);
         loadHistory();

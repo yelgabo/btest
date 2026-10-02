@@ -9,6 +9,7 @@ from importlib import resources
 import httpx
 import psycopg
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response
@@ -200,7 +201,8 @@ def create_app() -> Starlette:
             try:
                 data = await body(request)
                 with conn() as c:
-                    sid = lab.create(c, str(data.get("name", "")), data.get("code"))
+                    sid = lab.create(c, str(data.get("name", "")), data.get("code"),
+                                     str(data.get("kind", "strategy")))
             except ValueError as e:
                 return bad(str(e))
             return JSON({"id": sid}, status_code=201)
@@ -242,6 +244,8 @@ def create_app() -> Starlette:
                 s = lab.get(c, sid, data.get("version"))
                 if s is None:
                     return bad("That strategy or version does not exist.", 404)
+                if s["kind"] != "strategy":
+                    return bad("Indicators are not run as backtests; add them to a chart.")
                 if s["parse_error"]:
                     line = f" (line {s['parse_error_line']})" if s["parse_error_line"] else ""
                     return bad(f"{s['parse_error']}{line}")
@@ -283,6 +287,37 @@ def create_app() -> Starlette:
                                db.get_splits(c, sym), db.get_dividends(c, sym))
         return JSON(out)
 
+    async def indicator_series(request: Request):
+        q = request.query_params
+        try:
+            params = json.loads(q.get("params") or "{}")
+            if not isinstance(params, dict):
+                raise ValueError
+        except ValueError:
+            return bad("params must be a JSON object.")
+        with conn() as c:
+            v = q.get("version")
+            s = lab.get(c, request.path_params["id"], int(v) if v and v.isdigit() else None)
+        if s is None or s["kind"] != "indicator":
+            return bad("No such indicator.", 404)
+        body = {"code": s["code"], "name": s["name"], "params": params,
+                "symbol": q.get("symbol", "").upper(), "start": q.get("start", ""),
+                "end": q.get("end", ""), "tf": q.get("tf", "")}
+        if bars_url:
+            async with httpx.AsyncClient(timeout=60) as client:
+                r = await client.post(f"{bars_url}/indicator", json=body,
+                                      headers={"X-Btest-Token": bars_token})
+            return Response(r.content, status_code=r.status_code, media_type="application/json")
+        try:
+            start, end = bars.check(body["symbol"], body["start"], body["end"], body["tf"],
+                                    settings.symbols)
+        except ValueError as e:
+            return bad(str(e))
+        from btest import indicator_run
+        out = await run_in_threadpool(indicator_run.series, settings, conn, s["code"], s["name"],
+                                      params, body["symbol"], start, end, body["tf"])
+        return JSON(_clean(out), status_code=422 if out.get("error") else 200)
+
     async def run_fills(request: Request):
         q = request.query_params
         try:
@@ -315,6 +350,7 @@ def create_app() -> Starlette:
         Route("/api/jobs", jobs, methods=["POST"]),
         Route("/api/jobs/{id:int}", job_detail),
         Route("/api/candles", candles),
+        Route("/api/indicators/{id:int}/series", indicator_series),
         Route("/api/runs/{id:int}/fills", run_fills),
         Mount("/static", StaticFiles(directory=str(STATIC)), name="static"),
     ])

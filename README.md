@@ -76,6 +76,15 @@ from a strategy's params are set in minutes, so at 1m they equal what the strate
 On Railway the web service has no bar files; it proxies `/api/candles` to the worker's private
 bar service (`BTEST_BARS_URL`, shared `BTEST_INTERNAL_TOKEN`).
 
+## Custom indicators
+
+The Indicators section of the lab holds Python indicators (`btest.indicator.Indicator`):
+`params`, `pane = "price" | "own"`, optional `levels`, and `compute(self, c)` returning
+`{line: array}`. Opening one shows a live preview; any chart can add them from "Add
+indicator". The worker computes them in a child process that gets only the candles on stdin
+(no database URL, no secrets, 20 s limit). Starters live in `indicators/` and are added by
+`btest import-strategies`.
+
 ## Deployment (Railway)
 
 Project `btest`: `Postgres`, `web` (UI and API) and `worker` (lab jobs, Parquet bars on the

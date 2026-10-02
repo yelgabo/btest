@@ -153,7 +153,11 @@ def main() -> None:
         db.migrate(conn)
         if args.cmd == "import-strategies":
             from btest import lab
-            print("added:", lab.import_files(conn, args.folder) or "nothing new")
+            added = lab.import_files(conn, args.folder)
+            folder = Path("indicators")
+            if folder.is_dir():
+                added += [f"indicator {n}" for n in lab.import_files(conn, folder, "indicator")]
+            print("added:", added or "nothing new")
             return
         if args.cmd == "coverage":
             for symbol in settings.symbols:

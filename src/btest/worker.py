@@ -1,10 +1,8 @@
 """Claims lab jobs from Postgres and runs each in a child process with limits. Also keeps the
 bars current: a full ingest when the volume is empty, then once each weekday evening."""
 
-import json
 import os
 import socket
-import subprocess
 import sys
 import threading
 import time
@@ -15,28 +13,13 @@ import psycopg.conninfo
 import psycopg.sql
 
 from btest import config, db, store
-from btest.child import RESULT
 from btest.ingest import ingest, log
+from btest.worker_proc import run_child
 from btest.sources.alpaca import AlpacaSource
 
 TIMEOUT_S = {"run": 300, "sweep": 900}
 LOG_CHARS = 6000
 INGEST_HOUR_UTC = 22
-
-
-MEM_LIMIT_MB = int(os.environ.get("BTEST_CHILD_MEM_MB", "0"))
-
-
-def rss_mb(pid: int) -> float | None:
-    """Resident memory of a process from /proc (Linux only; None elsewhere)."""
-    try:
-        with open(f"/proc/{pid}/status") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) / 1024
-    except OSError:
-        return None
-    return None
 
 
 def child_env() -> dict:
@@ -91,48 +74,9 @@ def claim(conn: psycopg.Connection, worker: str) -> dict | None:
 
 
 def execute(job: dict) -> dict:
-    timeout = TIMEOUT_S[job["kind"]]
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "btest.child"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True, env=child_env(),
-    )
-    chunks: list[str] = []
-    reader = threading.Thread(target=lambda: chunks.append(proc.stdout.read()), daemon=True)
-    reader.start()
-    proc.stdin.write(json.dumps(job, default=str))
-    proc.stdin.close()
-    started = time.monotonic()
-    killed = None
-    peak = 0.0
-    while proc.poll() is None:
-        if time.monotonic() - started > timeout:
-            limit = f"{timeout // 60} minutes" if timeout >= 60 else f"{timeout} seconds"
-            killed = f"Stopped after {limit}, the limit for a {job['kind']}."
-        mem = rss_mb(proc.pid) or 0.0
-        peak = max(peak, mem)
-        if MEM_LIMIT_MB and mem > MEM_LIMIT_MB:
-            killed = f"Stopped at {mem:,.0f} MB of memory; the limit is {MEM_LIMIT_MB:,} MB."
-        if killed:
-            proc.kill()
-            break
-        time.sleep(0.2)
-    proc.wait()
-    reader.join(5)
-    out = "".join(chunks)
-    if killed:
-        return {"error": killed, "log": out}
-    result = None
-    for line in out.splitlines():
-        if line.startswith(RESULT):
-            result = json.loads(line[len(RESULT):])
-    if result is None:
-        reason = (f"killed by signal {-proc.returncode}" if proc.returncode < 0
-                  else f"exit code {proc.returncode}")
-        result = {"error": f"The run crashed ({reason}). The output below has details."}
-    lines = [ln for ln in out.splitlines() if not ln.startswith(RESULT)]
-    if peak:
-        lines.append(f"peak memory {peak:,.0f} MB")
-    result["log"] = "\n".join(lines)
+    result, log = run_child([sys.executable, "-m", "btest.child"], job,
+                            TIMEOUT_S[job["kind"]], child_env(), job["kind"])
+    result["log"] = log
     return result
 
 
@@ -190,7 +134,30 @@ def bars_app(settings):
         return JSONResponse(bars.candles(settings.data_dir, symbol, start, end, q.get("tf"),
                                          splits, dividends))
 
-    return Starlette(routes=[Route("/bars", candles)])
+    def indicator(request_body: dict):
+        from btest import indicator_run
+        symbol = str(request_body.get("symbol", "")).upper()
+        try:
+            start, end = bars.check(symbol, request_body.get("start", ""),
+                                    request_body.get("end", ""), request_body.get("tf", ""),
+                                    settings.symbols)
+        except ValueError as e:
+            return 400, {"error": str(e)}
+        out = indicator_run.series(settings, lambda: psycopg.connect(settings.database_url),
+                                   request_body["code"], request_body["name"],
+                                   request_body.get("params") or {}, symbol, start, end,
+                                   request_body["tf"])
+        return (422 if out.get("error") else 200), out
+
+    async def indicator_route(request):
+        if not token or request.headers.get("x-btest-token") != token:
+            return JSONResponse({"error": "Forbidden."}, status_code=403)
+        from starlette.concurrency import run_in_threadpool
+        status, out = await run_in_threadpool(indicator, await request.json())
+        return JSONResponse(out, status_code=status)
+
+    return Starlette(routes=[Route("/bars", candles),
+                             Route("/indicator", indicator_route, methods=["POST"])])
 
 
 def serve_bars(settings) -> None:

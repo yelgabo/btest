@@ -94,7 +94,7 @@ export function priceChart(root, opts, ui) {
         symbol: saved.symbol && opts.symbols.includes(saved.symbol) ? saved.symbol : opts.symbol,
         tf: saved.tf || opts.tf,
         end: saved.end || opts.end,
-        indicators: saved.indicators || opts.indicators,
+        indicators: (!opts.freshIndicators && saved.indicators) || opts.indicators,
     };
     const persist = () => store.set(key, st);
     let data = EMPTY(), fills = [], chart = null, candleSeries = null, volSeries = null, markersApi = null;
@@ -112,9 +112,14 @@ export function priceChart(root, opts, ui) {
         return Math.max(2, Math.round(ind.len / TF_MIN[st.tf]));
     }
     function label(ind) {
-        const name = {sma: "SMA", ema: "EMA", bb: "BB"}[ind.type];
-        return name;
+        if (ind.type === "custom") return ind.name.split("/").pop();
+        return {sma: "SMA", ema: "EMA", bb: "BB"}[ind.type];
     }
+    const OWN_COLORS = ["#c98500", "#3987e5", "#199e70", "#d55181"];
+    let customList = null;
+    // Lines of each custom indicator, aligned to data.t; rebuilt on every reset.
+    let customData = new Map();
+    const customKey = ind => JSON.stringify([ind.id, ind.params]);
 
     function renderTf() {
         tfSeg.replaceChildren(...Object.keys(TF_MIN).map(tf => h("button", {"aria-pressed": String(tf === st.tf), onclick: () => {
@@ -129,8 +134,46 @@ export function priceChart(root, opts, ui) {
         }}, tf)));
     }
 
+    function customChip(ind, i) {
+        const inputs = Object.entries(ind.defaults || {}).map(([k, dv]) => {
+            const v = k in ind.params ? ind.params[k] : dv;
+            return [h("small", {}, k), h("input", {type: typeof dv === "number" ? "number" : "text", value: v,
+                step: typeof dv === "number" && !Number.isInteger(dv) ? "any" : 1, "aria-label": `${label(ind)} ${k}`,
+                onchange: ev => {
+                    const raw = ev.target.value;
+                    ind.params[k] = typeof dv === "number" ? +raw : raw;
+                    persist(); reset();
+                }})];
+        });
+        return h("span", {class: "pc-chip", style: `--c:${ind.pane === "own" ? OWN_COLORS[0] : LINE_COLORS[i % LINE_COLORS.length]}`,
+                          title: `Custom indicator ${ind.name}${ind.pane === "own" ? ", in its own pane" : ""}`},
+            h("b", {}, label(ind)), ...inputs.flat(),
+            opts.lockCustom === ind.id ? null : h("button", {class: "icon", "aria-label": `Remove ${label(ind)}`, onclick: () => {
+                st.indicators.splice(i, 1); persist(); renderInds(); drawIndicators();
+            }}, "×"));
+    }
+
+    async function addCustom(id) {
+        const d = await api(`/api/strategies/${id}`);
+        st.indicators.push({type: "custom", id: d.id, name: d.name, params: {}, defaults: d.params,
+                            pane: d.pane, levels: d.levels});
+        persist(); renderInds(); reset();
+    }
+
+    // The preview in the editor calls this after each save so the chip and panes follow the code.
+    function updateCustom(id, d) {
+        for (const ind of st.indicators) {
+            if (ind.type === "custom" && ind.id === id) {
+                ind.name = d.name; ind.defaults = d.params; ind.pane = d.pane; ind.levels = d.levels;
+                for (const k of Object.keys(ind.params)) if (!(k in d.params)) delete ind.params[k];
+            }
+        }
+        persist(); renderInds(); reset();
+    }
+
     function renderInds() {
         indEl.replaceChildren(...st.indicators.map((ind, i) => {
+            if (ind.type === "custom") return customChip(ind, i);
             const color = ind.type === "bb" ? BAND : LINE_COLORS[i % LINE_COLORS.length];
             const lenInput = h("input", {type: "number", min: 1, step: 1, value: ind.len, "aria-label": `${label(ind)} length`,
                 onchange: ev => { const v = +ev.target.value; if (v >= 1) { ind.len = v; persist(); renderInds(); drawIndicators(); } }});
@@ -147,10 +190,13 @@ export function priceChart(root, opts, ui) {
             const type = ev.target.value;
             ev.target.value = "";
             if (!type) return;
+            if (type.startsWith("custom:")) return addCustom(+type.slice(7));
             st.indicators.push(type === "bb" ? {type, len: 20, unit: "c", k: 2} : {type, len: type === "ema" ? 9 : 20, unit: "c"});
             persist(); renderInds(); drawIndicators();
         }}, h("option", {value: ""}, "Add indicator"), h("option", {value: "sma"}, "SMA, simple moving average"),
-            h("option", {value: "ema"}, "EMA, exponential moving average"), h("option", {value: "bb"}, "Bollinger bands")));
+            h("option", {value: "ema"}, "EMA, exponential moving average"), h("option", {value: "bb"}, "Bollinger bands"),
+            customList && customList.length ? h("optgroup", {label: "Your indicators"},
+                customList.map(c => h("option", {value: `custom:${c.id}`}, c.name))) : null));
     }
 
     const goTo = h("input", {type: "date", value: st.end, min: opts.minDate, max: today(), "aria-label": "Go to date",
@@ -213,15 +259,38 @@ export function priceChart(root, opts, ui) {
         const L = LWC();
         lineSeries.forEach(s => chart.removeSeries(s));
         lineSeries = [];
+        for (let p = chart.panes().length - 1; p >= 2; p--) chart.removePane(p);
         indicatorValues = [];
         const t = data.t, c = data.c;
-        const line = (values, color, opts2 = {}) => {
+        const line = (values, color, opts2 = {}, pane = 0) => {
             const s = chart.addSeries(L.LineSeries, {color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
-                                                     crosshairMarkerVisible: false, ...opts2});
+                                                     crosshairMarkerVisible: false, ...opts2}, pane);
             s.setData(values.map((v, i) => (v == null ? {time: t[i]} : {time: t[i], value: v})));
             lineSeries.push(s);
+            return s;
         };
+        let ownPane = 1;
         st.indicators.forEach((ind, i) => {
+            if (ind.type === "custom") {
+                const got = customData.get(customKey(ind));
+                if (!got || !got.lines) return;
+                const pane = ind.pane === "own" ? ++ownPane : 0;
+                const names = Object.keys(got.lines);
+                const colors = names.map((_, k) => (pane ? OWN_COLORS : LINE_COLORS)[(k + (pane ? 0 : i)) % 4]);
+                names.forEach((name, k) => {
+                    const s = line(got.lines[name], colors[k], {lineWidth: 2, lastValueVisible: !!pane}, pane);
+                    if (k === 0) {
+                        for (const level of ind.levels || []) {
+                            s.createPriceLine({price: level, color: "#5d6778", lineWidth: 1, lineStyle: L.LineStyle.Dashed,
+                                               axisLabelVisible: false, title: ""});
+                        }
+                    }
+                });
+                if (pane) chart.panes()[pane].setStretchFactor(0.22);
+                indicatorValues.push({name: label(ind) + (names.length > 1 ? ` (${names.join(", ")})` : ""),
+                                      color: colors[0], values: names.map(n => got.lines[n])});
+                return;
+            }
             const n = periodCandles(ind);
             if (ind.type === "bb") {
                 const b = bollinger(c, n, ind.k);
@@ -275,6 +344,7 @@ export function priceChart(root, opts, ui) {
     // about CHUNK candles as the view nears either edge.
     // False while a reset is loading, so a timeframe switch keeps a just-chosen Go to date.
     let ready = false;
+    let destroyed = false;
     let gen = 0, lo = null, hi = null, moreLeft = false, moreRight = false, busyLeft = false, busyRight = false;
 
     function chunkDays() {
@@ -284,17 +354,59 @@ export function priceChart(root, opts, ui) {
 
     async function fetchRange(a, b) {
         const q = new URLSearchParams({symbol: st.symbol, start: a, end: b, tf: st.tf});
-        const [candles, runFills] = await Promise.all([
+        const customs = st.indicators.filter(i => i.type === "custom");
+        const [candles, runFills, ...custom] = await Promise.all([
             api(`/api/candles?${q}`),
             opts.runId ? api(`/api/runs/${opts.runId}/fills?start=${a}&end=${b}`) : Promise.resolve([]),
+            ...customs.map(ind => api(`/api/indicators/${ind.id}/series?${q}&params=${encodeURIComponent(JSON.stringify(ind.params))}`)
+                .then(r => ({ind, r}), e => ({ind, e}))),
         ]);
-        return [candles, runFills.filter(f => f[1] === st.symbol)];
+        // Line values keyed by candle time, so a chunk lines up even if counts ever differ.
+        const lines = new Map();
+        for (const {ind, r, e} of custom) {
+            if (e) { lines.set(customKey(ind), {error: e}); continue; }
+            const at = new Map(r.t.map((t, i) => [t, i]));
+            const aligned = {};
+            for (const [name, vals] of Object.entries(r.series)) {
+                aligned[name] = candles.t.map(t => (at.has(t) ? vals[at.get(t)] : null));
+            }
+            lines.set(customKey(ind), {lines: aligned});
+        }
+        return [candles, runFills.filter(f => f[1] === st.symbol), lines];
     }
 
     function join(x, y) {
         const out = {};
         for (const k of Object.keys(x)) out[k] = x[k].concat(y[k]);
         return out;
+    }
+
+    // Merge a chunk's indicator lines into what is loaded, before or after it.
+    function joinCustom(chunk, nChunk, prepend) {
+        for (const ind of st.indicators.filter(i => i.type === "custom")) {
+            const k = customKey(ind);
+            const have = customData.get(k), add = chunk.get(k);
+            if (!have || have.error || !add || add.error) {
+                if (add && add.error) customData.set(k, add);
+                continue;
+            }
+            for (const name of Object.keys(have.lines)) {
+                const extra = add.lines[name] || new Array(nChunk).fill(null);
+                have.lines[name] = prepend ? extra.concat(have.lines[name]) : have.lines[name].concat(extra);
+            }
+        }
+    }
+
+    function reportCustom() {
+        const errs = [];
+        for (const ind of st.indicators.filter(i => i.type === "custom")) {
+            const got = customData.get(customKey(ind));
+            if (got && got.error) {
+                errs.push(`${label(ind)}: ${got.error.message}`);
+                opts.onIndicatorError?.(ind.id, got.error);
+            } else if (got) opts.onIndicatorOk?.(ind.id);
+        }
+        return errs;
     }
 
     function setNote() {
@@ -307,8 +419,9 @@ export function priceChart(root, opts, ui) {
             parts.push("Strategy indicators are scaled to candles; at 1m they match the strategy exactly.");
         }
         parts.push("Prices adjusted for splits and dividends, times in New York.");
-        noteEl.textContent = parts.join(" ");
-        noteEl.className = "pc-note";
+        const errs = reportCustom();
+        noteEl.textContent = errs.length ? errs.join(" ") : parts.join(" ");
+        noteEl.className = errs.length ? "pc-note error" : "pc-note";
     }
 
     function applyData() {
@@ -336,6 +449,7 @@ export function priceChart(root, opts, ui) {
     }
 
     async function reset() {
+        if (destroyed) return;
         const g = ++gen;
         ready = false;
         busyLeft = busyRight = false;
@@ -346,9 +460,9 @@ export function priceChart(root, opts, ui) {
         noteEl.className = "pc-note";
         let got;
         try { got = await fetchRange(start, end); } catch (e) { if (g === gen) showError(e); return; }
-        if (g !== gen) return;
+        if (g !== gen || destroyed) return;
         if (!chart) makeChart();
-        [data, fills] = got;
+        [data, fills, customData] = got;
         lo = start; hi = end;
         moreLeft = start > opts.minDate;
         moreRight = end < today();
@@ -369,10 +483,11 @@ export function priceChart(root, opts, ui) {
         let got;
         try { got = await fetchRange(a, b); } catch (e) { busyLeft = false; if (g === gen) showError(e); return; }
         if (g !== gen) return;
-        const [c, f] = got;
+        const [c, f, cl] = got;
         const range = chart.timeScale().getVisibleLogicalRange();
         data = join(c, data);
         fills = f.concat(fills);
+        joinCustom(cl, c.t.length, true);
         lo = a;
         moreLeft = a > opts.minDate;
         applyData();
@@ -394,10 +509,11 @@ export function priceChart(root, opts, ui) {
         let got;
         try { got = await fetchRange(a, b); } catch (e) { busyRight = false; if (g === gen) showError(e); return; }
         if (g !== gen) return;
-        const [c, f] = got;
+        const [c, f, cl] = got;
         const range = chart.timeScale().getVisibleLogicalRange();
         data = join(data, c);
         fills = fills.concat(f);
+        joinCustom(cl, c.t.length, false);
         hi = b;
         moreRight = b < today();
         applyData();
@@ -423,6 +539,14 @@ export function priceChart(root, opts, ui) {
         return {n: data.t.length, lo, hi, moreLeft, moreRight, ordered, fills: fills.length, tf: st.tf,
                 firstVisible: r ? at(r.from) : null, lastVisible: r ? at(r.to) : null};
     };
+    api("/api/strategies").then(list => { customList = list.filter(x => x.kind === "indicator"); renderInds(); }).catch(() => {});
     reset();
-    return {destroy() { if (chart) chart.remove(); chart = null; }};
+    return {refresh: reset, updateCustom, destroy() {
+        // Bumping gen makes any load still in flight drop its result instead of drawing on a
+        // chart that no longer exists.
+        destroyed = true;
+        gen++;
+        if (chart) chart.remove();
+        chart = null;
+    }};
 }

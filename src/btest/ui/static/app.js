@@ -64,6 +64,7 @@ async function api(path) {
     if (!res.ok) {
         const err = new Error(body.error || `${path} returned ${res.status}`);
         err.status = res.status;
+        err.body = body;
         throw err;
     }
     return body;
@@ -884,7 +885,7 @@ async function route() {
         if (inLab) {
             labModule = labModule || await import("/static/lab.js");
             nodes = await labModule.labPage(parts[1] ? +parts[1] : null, {
-                h, api, write, pct, num, int, tone, money, onMount, lineChart});
+                h, api, write, pct, num, int, tone, money, onMount, lineChart, addCleanup: f => cleanups.push(f)});
         } else if (parts[0] === "runs" && parts[1]) nodes = await runPage(+parts[1]);
         else if (parts[0] === "chart") nodes = await chartPage(new URLSearchParams(query));
         else if (parts[0] === "compare") {
