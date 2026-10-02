@@ -65,6 +65,20 @@ Runs and sweeps are queued in `lab.job` and executed by `btest worker`, each in 
 that connects as the restricted `btest_runner` role and has a time limit. `btest
 import-strategies` copies `strategies/*.py` into the lab.
 
+## Strategies and indicators
+
+| Strategy | Bars | Idea |
+|---|---|---|
+| `ma_cross` | 1m | Fast / slow moving-average crossover |
+| `mean_reversion/zscore` | 1m | Buy stretches below the rolling mean, sell on the snap back |
+| `mean_reversion/rsi2` | 1D | Connors RSI(2) pullbacks inside a 200-day uptrend |
+| `trend/sma_200` | 1D | Hold above the moving average, cash below |
+| `trend/momentum_12m` | 1D | Hold while the 12-month return beats a hurdle, checked monthly |
+| `risk/vol_target` | 1D | Always invested, sized to a target volatility |
+| `intraday/opening_range` | 5m | Buy a break of the first 30 minutes' high, flat by 15:50 |
+
+Indicators: `rsi`, `zscore`, `vwap`, `atr`, `volatility`, `roc`.
+
 ## Timeframes
 
 A strategy sets `timeframe = "1D"` (or `5m`, `15m`, `30m`, `1h`; default `1m`). The runner,
