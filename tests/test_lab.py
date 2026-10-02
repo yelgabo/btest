@@ -180,3 +180,19 @@ def test_web_login_header_guard_and_job_submit(testdb, monkeypatch):
     jid = r.json()["id"]
     j = c2.get(f"/api/jobs/{jid}").json()
     assert j["status"] == "queued" and j["spec"]["symbols"] == ["SPY"]
+
+
+def test_worker_kills_a_job_over_its_time_limit(testdb, tmp_path, monkeypatch):
+    from btest import worker
+    synthetic_spy(tmp_path)
+    sid = lab.create(testdb, "slow_demo")
+    s = lab.get(testdb, sid)
+    slow = s["code"].replace("    def on_bar(self, ctx, bar):\n",
+                             "    def on_bar(self, ctx, bar):\n        import time; time.sleep(5)\n")
+    monkeypatch.setitem(worker.TIMEOUT_S, "run", 1)
+    job = {"id": 0, "kind": "run", "strategy_version_id": s["version_id"], "version": 1,
+           "name": "slow_demo", "code": slow,
+           "spec": {"symbols": ["SPY"], "start": "2020-01-01", "end": "2020-03-01",
+                    "params": {}, "config": {}}}
+    out = run_child(job, tmp_path)
+    assert out["error"] == "Stopped after 1 seconds, the limit for a run."
