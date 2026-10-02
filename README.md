@@ -47,3 +47,12 @@ uv run btest sweep strategies/ma_cross.py SPY --start 2016-01-01 \
 `signals()` must give the same fills as `on_bar()`; `btest parity` checks that on real data.
 Sweeps stop at `holdout_start` in `btest.toml`. Confirm a chosen setting on the holdout once
 with `btest run`; it warns how many times that strategy has already looked at the holdout.
+
+## UI
+
+```sh
+uv run btest ui                             # http://127.0.0.1:8765
+```
+
+Read-only workbench over the runs and sweeps in Postgres: runs table, run detail (equity,
+drawdown, monthly returns, fills), compare up to four runs, sweep parameter maps, data status.

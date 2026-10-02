@@ -91,6 +91,8 @@ def main() -> None:
     p_ing.add_argument("symbols", nargs="*", help="defaults to btest.toml symbols")
     p_chk = sub.add_parser("check-adjust", help="compare our adjusted bars with Alpaca's")
     p_chk.add_argument("symbols", nargs="*")
+    p_ui = sub.add_parser("ui", help="serve the local web UI")
+    p_ui.add_argument("--port", type=int, default=8765)
     p_rep = sub.add_parser("report", help="write the HTML report for a run")
     p_rep.add_argument("run_id", type=int)
     p_bars = sub.add_parser("bars", help="print adjusted regular-session bars")
@@ -125,6 +127,13 @@ def main() -> None:
     _cost_args(p_par)
     args = parser.parse_args()
 
+    if args.cmd == "ui":
+        import uvicorn
+
+        from btest.ui.server import create_app
+        print(f"btest UI on http://127.0.0.1:{args.port}")
+        uvicorn.run(create_app(), host="127.0.0.1", port=args.port, log_level="warning")
+        return
     settings = config.load()
     with db.connect(settings.database_url) as conn:
         if args.cmd == "migrate":

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>btest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="bar">
+    <a class="mark" href="#/runs">btest</a>
+    <nav class="tabs" aria-label="Sections">
+        <a href="#/runs" data-tab="runs">Runs</a>
+        <a href="#/sweeps" data-tab="sweeps">Sweeps</a>
+        <a href="#/data" data-tab="data">Data</a>
+    </nav>
+    <div class="status" id="status"></div>
+</header>
+<main id="view" tabindex="-1"></main>
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>
