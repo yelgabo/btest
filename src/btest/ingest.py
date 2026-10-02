@@ -2,6 +2,7 @@ import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+import duckdb
 import httpx
 import polars as pl
 import psycopg
@@ -83,3 +84,26 @@ def ingest(conn: psycopg.Connection, source: DataSource, data_dir: Path,
         pct = 100 * i / len(plan)
         log(f"[{i}/{len(plan)} {pct:.0f}%] {symbol} {a:%Y-%m-%d} to {b:%Y-%m-%d}: "
             f"{bars.height:,} bars ({int(bars['regular'].sum()):,} regular)")
+    for symbol in symbols:
+        record_coverage(conn, data_dir, symbol)
+
+
+def record_coverage(conn: psycopg.Connection, data_dir: Path, symbol: str) -> None:
+    """Summarise the Parquet store in Postgres so the UI can show it without the files."""
+    files = store.bars_dir(data_dir, symbol) / "year=*" / "bars.parquet"
+    with duckdb.connect() as con:
+        con.execute("SET TimeZone = 'UTC'")
+        n, regular, first, last = con.execute(
+            "SELECT count(*), count(*) FILTER (WHERE regular), "
+            "strftime(min(ts), '%Y-%m-%dT%H:%M:%SZ'), strftime(max(ts), '%Y-%m-%dT%H:%M:%SZ') "
+            f"FROM read_parquet('{files}')"
+        ).fetchone()
+    conn.execute(
+        "INSERT INTO market.coverage (symbol, bars, regular_bars, first_ts, last_ts) "
+        "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (symbol) DO UPDATE SET bars = EXCLUDED.bars, "
+        "regular_bars = EXCLUDED.regular_bars, first_ts = EXCLUDED.first_ts, "
+        "last_ts = EXCLUDED.last_ts, updated_at = now()",
+        (symbol, n, regular, first, last),
+    )
+    conn.commit()
+    log(f"coverage {symbol}: {n:,} bars, {first} to {last}")

@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -8,7 +9,7 @@ import polars as pl
 from btest import config, db, loader
 from btest.check import check_adjustments
 from btest.engine import Config, Costs
-from btest.ingest import ingest
+from btest.ingest import ingest, record_coverage
 from btest.report import write_report
 from btest.parity import compare
 from btest.runner import load_strategy_class, run_backtest
@@ -87,12 +88,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="btest")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("migrate", help="apply database migrations")
+    sub.add_parser("coverage", help="refresh the bar summary the UI reads from Postgres")
     p_ing = sub.add_parser("ingest", help="backfill or update bars and corporate actions")
     p_ing.add_argument("symbols", nargs="*", help="defaults to btest.toml symbols")
     p_chk = sub.add_parser("check-adjust", help="compare our adjusted bars with Alpaca's")
     p_chk.add_argument("symbols", nargs="*")
     p_ui = sub.add_parser("ui", help="serve the local web UI")
-    p_ui.add_argument("--port", type=int, default=8765)
+    p_ui.add_argument("--host", default="127.0.0.1")
+    p_ui.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8765)))
     p_rep = sub.add_parser("report", help="write the HTML report for a run")
     p_rep.add_argument("run_id", type=int)
     p_bars = sub.add_parser("bars", help="print adjusted regular-session bars")
@@ -131,8 +134,9 @@ def main() -> None:
         import uvicorn
 
         from btest.ui.server import create_app
-        print(f"btest UI on http://127.0.0.1:{args.port}")
-        uvicorn.run(create_app(), host="127.0.0.1", port=args.port, log_level="warning")
+        print(f"btest UI on http://{args.host}:{args.port}", flush=True)
+        uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning",
+                    proxy_headers=True, forwarded_allow_ips="*")
         return
     settings = config.load()
     with db.connect(settings.database_url) as conn:
@@ -140,6 +144,10 @@ def main() -> None:
             print("applied:", db.migrate(conn) or "nothing new")
             return
         db.migrate(conn)
+        if args.cmd == "coverage":
+            for symbol in settings.symbols:
+                record_coverage(conn, settings.data_dir, symbol)
+            return
         source = AlpacaSource(settings.alpaca_key, settings.alpaca_secret)
         symbols = getattr(args, "symbols", None) or settings.symbols
         if args.cmd == "ingest":

@@ -56,3 +56,15 @@ uv run btest ui                             # http://127.0.0.1:8765
 
 Read-only workbench over the runs and sweeps in Postgres: runs table, run detail (equity,
 drawdown, monthly returns, fills), compare up to four runs, sweep parameter maps, data status.
+
+## Deployment (Railway)
+
+Project `btest`: a `Postgres` service and a `web` service running the UI from the Dockerfile.
+
+- Live: https://web-production-584c0.up.railway.app (HTTP basic auth, any username, password
+  is `BTEST_UI_PASSWORD` in `.env` and on the web service).
+- Deploy: `railway up --service web --detach`. Not hooked to GitHub; pushing does not deploy.
+- Railway Postgres is the main database. The local CLI writes runs and sweeps to it through
+  the public TCP proxy (`DATABASE_URL` in `.env`), so new results appear on the site.
+- Parquet bars stay on this machine. `btest ingest` refreshes `market.coverage`, which the
+  Data page reads; `btest coverage` refreshes it alone.

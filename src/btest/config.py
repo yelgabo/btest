@@ -20,16 +20,16 @@ class Settings:
     holdout_start: date
 
 
-def load(root: Path = ROOT) -> Settings:
+def load(root: Path = ROOT, need_alpaca: bool = True) -> Settings:
     load_dotenv(root / ".env")
     with open(root / "btest.toml", "rb") as f:
         cfg = tomllib.load(f)
     missing = [k for k in ("ALPACA_API_KEY", "ALPACA_SECRET_KEY") if not os.environ.get(k)]
-    if missing:
+    if missing and need_alpaca:
         raise SystemExit(f"missing in .env: {', '.join(missing)}")
     return Settings(
-        alpaca_key=os.environ["ALPACA_API_KEY"],
-        alpaca_secret=os.environ["ALPACA_SECRET_KEY"],
+        alpaca_key=os.environ.get("ALPACA_API_KEY", ""),
+        alpaca_secret=os.environ.get("ALPACA_SECRET_KEY", ""),
         database_url=os.environ.get("DATABASE_URL", "postgresql://localhost:5432/btest"),
         data_dir=root / cfg.get("data_dir", "data"),
         symbols=list(cfg["symbols"]),

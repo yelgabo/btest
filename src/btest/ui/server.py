@@ -1,8 +1,10 @@
+import base64
+import hmac
 import json
+import os
 from datetime import UTC, date, datetime
 from importlib import resources
 
-import duckdb
 import psycopg
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -10,8 +12,7 @@ from starlette.responses import FileResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from btest import config
-from btest.store import bars_dir
+from btest import config, db
 
 STATIC = resources.files("btest.ui") / "static"
 SUMMARY_KEYS = ["total_return", "cagr", "sharpe", "sortino", "max_drawdown", "ann_vol",
@@ -45,7 +46,9 @@ def _clean(v):
 
 
 def create_app() -> Starlette:
-    settings = config.load()
+    settings = config.load(need_alpaca=False)
+    with psycopg.connect(settings.database_url) as c:
+        db.migrate(c)
     holdout = datetime.combine(settings.holdout_start, datetime.min.time(), UTC)
 
     def conn() -> psycopg.Connection:
@@ -144,27 +147,18 @@ def create_app() -> Starlette:
                 "(SELECT max(d.ex_date) FROM market.dividend d WHERE d.symbol_id = y.id) "
                 "FROM market.symbol y ORDER BY y.ticker"
             ).fetchall()
+            cov = {r[0]: r[1:] for r in c.execute(
+                "SELECT symbol, bars, regular_bars, first_ts, last_ts FROM market.coverage")}
             rate = c.execute("SELECT date, value FROM market.rate WHERE series = 'DTB3' "
                              "ORDER BY date DESC LIMIT 1").fetchone()
         symbols = []
-        with duckdb.connect() as db:
-            db.execute("SET TimeZone = 'UTC'")
-            for ticker, n_splits, n_divs, split_list, last_div in actions:
-                files = bars_dir(settings.data_dir, ticker) / "year=*" / "bars.parquet"
-                try:
-                    n, regular, first, last = db.execute(
-                        # Formatted in SQL: returning timestamptz to Python would need pytz.
-                        f"SELECT count(*), count(*) FILTER (WHERE regular), "
-                        f"strftime(min(ts), '%Y-%m-%dT%H:%M:%SZ'), "
-                        f"strftime(max(ts), '%Y-%m-%dT%H:%M:%SZ') FROM read_parquet('{files}')"
-                    ).fetchone()
-                except duckdb.IOException:
-                    n, regular, first, last = 0, 0, None, None
-                symbols.append({
-                    "symbol": ticker, "bars": n, "regular_bars": regular, "first": first,
-                    "last": last, "splits": split_list or [], "dividends": n_divs,
-                    "last_dividend": last_div,
-                })
+        for ticker, n_splits, n_divs, split_list, last_div in actions:
+            n, regular, first, last = cov.get(ticker, (0, 0, None, None))
+            symbols.append({
+                "symbol": ticker, "bars": n, "regular_bars": regular, "first": first,
+                "last": last, "splits": split_list or [], "dividends": n_divs,
+                "last_dividend": last_div,
+            })
         return JSON({
             "symbols": symbols,
             "holdout_start": settings.holdout_start,
@@ -175,7 +169,7 @@ def create_app() -> Starlette:
     async def index(request: Request):
         return FileResponse(STATIC / "index.html")
 
-    return Starlette(routes=[
+    app = Starlette(routes=[
         Route("/", index),
         Route("/api/runs", runs),
         Route("/api/runs/{id:int}", run_detail),
@@ -184,6 +178,36 @@ def create_app() -> Starlette:
         Route("/api/data", data),
         Mount("/static", StaticFiles(directory=str(STATIC)), name="static"),
     ])
+    password = os.environ.get("BTEST_UI_PASSWORD")
+    if password:
+        app.add_middleware(BasicAuth, password=password)
+    return app
+
+
+class BasicAuth:
+    """HTTP basic auth for the deployed UI. Any username; the password comes from
+    BTEST_UI_PASSWORD."""
+
+    def __init__(self, app, password: str):
+        self.app = app
+        self.password = password.encode()
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        header = dict(scope["headers"]).get(b"authorization", b"")
+        ok = False
+        if header.startswith(b"Basic "):
+            try:
+                _, _, pw = base64.b64decode(header[6:]).partition(b":")
+                ok = hmac.compare_digest(pw, self.password)
+            except ValueError:
+                ok = False
+        if ok:
+            return await self.app(scope, receive, send)
+        resp = Response("Password required.", status_code=401,
+                        headers={"WWW-Authenticate": 'Basic realm="btest"'})
+        await resp(scope, receive, send)
 
 
 def monthly_returns(equity: list[tuple]) -> list[list]:
