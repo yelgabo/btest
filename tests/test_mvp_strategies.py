@@ -9,13 +9,15 @@ from tests.test_parity import CFG, synthetic
 S = ROOT / "strategies"
 CASES = [
     ("risk/vol_target.py", {"lookback": 10, "rebalance_band": 0.02, "target_vol": 0.03}, 300, 4),
+    ("risk/vol_target.py", {"lookback": 20, "reentry_lookback": 5, "rebalance_band": 0.02,
+                            "target_vol": 0.03}, 300, 4),
     ("mean_reversion/rsi2.py", {"trend_ma": 20, "exit_ma": 3, "entry": 30.0}, 300, 4),
     ("trend/momentum_12m.py", {"lookback": 40, "rebalance_days": 5}, 300, 4),
     ("intraday/opening_range.py", {"range_minutes": 30}, 30, 390),
 ]
 
 
-@pytest.mark.parametrize("path,params,days,per_day", CASES, ids=[c[0] for c in CASES])
+@pytest.mark.parametrize("path,params,days,per_day", CASES, ids=[f"{c[0]}-{i}" for i, c in enumerate(CASES)])
 def test_fast_path_matches_event_engine(path, params, days, per_day):
     cls = load_strategy_class(S / path)
     minute, splits, divs = synthetic(days=days, per_day=per_day)
