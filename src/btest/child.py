@@ -40,9 +40,55 @@ def error_line(tb, path: str) -> int | None:
     return line
 
 
+def decide(job: dict, settings, path: Path) -> dict:
+    """One live decision for a deployment: today's targets from the account it was given."""
+    from datetime import date as date_cls
+
+    from btest import daily, db
+    from btest.options import OptionBook
+    from btest.portfolio import Market, PortfolioConfig, decide_once
+    from btest.runner import load_strategy_class
+
+    cls = load_strategy_class(path)
+    strategy = cls(**job["params"])
+    universe = [s.upper() for s in cls.universe]
+    session = date_cls.fromisoformat(job["session"])
+    cfg = PortfolioConfig()
+    with psycopg.connect(settings.database_url) as conn:
+        # The whole published calendar: decide() may ask how many sessions are left this month.
+        sessions = db.get_sessions(conn, date_cls(2000, 1, 1), date_cls(2100, 1, 1))
+        frames = {}
+        for s in universe:
+            df = daily.load(settings.data_dir, s, sessions, cfg.timing, db.get_splits(conn, s),
+                            db.get_dividends(conn, s), end=session)
+            if df.is_empty() or df["date"].max() != session:
+                raise SystemExit(f"{s} has no bars for {session} yet")
+            frames[s] = df
+        first = min(f["date"].min() for f in frames.values())
+        dates = [d for d in sessions["date"].to_list() if first <= d <= session]
+        acct = job["account"]
+        return decide_once(strategy, Market(dates, frames), sessions, cfg, acct["cash"],
+                           acct["stocks"], acct["options"], db.get_rates(conn, "DTB3"),
+                           OptionBook(conn))
+
+
 def main() -> None:
     job = json.loads(sys.stdin.read())
     settings = config.load(need_alpaca=False)
+    if job["kind"] == "decide":
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / f"{job['name'].rsplit('/', 1)[-1]}.py"
+            path.write_text(job["code"])
+            try:
+                out = decide(job, settings, path)
+            except BaseException as e:
+                if isinstance(e, KeyboardInterrupt):
+                    raise
+                traceback.print_exc()
+                out = {"error": str(e) if isinstance(e, SystemExit)
+                       else f"{type(e).__name__}: {e}"}
+        print(RESULT + json.dumps(out, default=str), flush=True)
+        sys.exit(1 if out.get("error") else 0)
     spec = job["spec"]
     leaf = job["name"].rsplit("/", 1)[-1]
     with tempfile.TemporaryDirectory() as tmp:
@@ -55,7 +101,9 @@ def main() -> None:
                     run_id, *_ = run_backtest(
                         conn, settings.data_dir, path, spec["params"], spec["symbols"],
                         _utc(spec["start"]), _utc(spec["end"]), _config(spec["config"]),
-                        label=label, strategy_version_id=job["strategy_version_id"])
+                        label=label, strategy_version_id=job["strategy_version_id"],
+                        extra={k: v for k, v in spec["config"].items()
+                               if k in ("cash", "fractional", "cash_yield", "benchmark")})
                     out = {"run_id": run_id}
                 else:
                     sweep_id, _ = run_sweep(

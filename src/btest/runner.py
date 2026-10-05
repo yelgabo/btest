@@ -12,7 +12,7 @@ import psycopg
 from btest import bars, db, loader, metrics
 from btest.config import ROOT
 from btest.engine import Config, Engine, Result
-from btest.strategy import Strategy
+from btest.strategy import Strategy, has_decide
 
 BENCHMARK = "SPY"
 
@@ -65,8 +65,12 @@ def _git() -> tuple[str | None, bool | None]:
 def run_backtest(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, params: dict,
                  symbols: list[str], start: datetime, end: datetime, config: Config,
                  label: str | None = None,
-                 strategy_version_id: int | None = None) -> tuple[int, dict, dict, Result]:
+                 strategy_version_id: int | None = None,
+                 extra: dict | None = None) -> tuple[int, dict, dict, Result]:
     cls = load_strategy_class(strategy_path)
+    if has_decide(cls):
+        return run_portfolio(conn, data_dir, strategy_path, params, symbols, start, end,
+                             portfolio_config(config, extra), label, strategy_version_id)
     strategy = cls(**params)
     tf = strategy_timeframe(cls)
     splits = {s: db.get_splits(conn, s) for s in symbols}
@@ -108,6 +112,114 @@ def run_backtest(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, 
         "git_dirty": dirty,
         "metrics": stats,
         "benchmark_metrics": bench,
+        "duration_s": duration,
+        "strategy_version_id": strategy_version_id,
+    }, result.fills, equity)
+    return run_id, stats, bench, result
+
+
+def benchmark_from_daily(frames: dict[str, pl.DataFrame], name: str, dates: pl.Series,
+                         cash: float) -> pl.DataFrame:
+    """Buy-and-hold SPY, or SPY/AGG 60/40 rebalanced at each month end, on adjusted closes."""
+    weights = {"SPY": {"SPY": 1.0}, "60/40": {"SPY": 0.6, "AGG": 0.4}}[name]
+    out = pl.DataFrame({"date": dates})
+    for s in weights:
+        out = out.join(frames[s].select("date", pl.col("close").alias(s)), on="date", how="left")
+    out = out.with_columns(pl.col(s).forward_fill().backward_fill() for s in weights)
+    values = []
+    units: dict[str, float] = {}
+    for k, row in enumerate(out.iter_rows(named=True)):
+        if k == 0:
+            units = {s: cash * w / row[s] for s, w in weights.items()}
+        value = sum(units[s] * row[s] for s in weights)
+        values.append(value)
+        last_of_month = k + 1 == out.height or out["date"][k + 1].month != row["date"].month
+        if last_of_month and len(weights) > 1:
+            units = {s: value * w / row[s] for s, w in weights.items()}
+    return pl.DataFrame({"date": dates, "benchmark": values})
+
+
+def portfolio_config(config: Config, extra: dict | None = None):
+    from btest.portfolio import PortfolioConfig, PortfolioCosts
+    extra = extra or {}
+    benchmark = extra.get("benchmark", "SPY")
+    if benchmark not in ("SPY", "60/40"):
+        raise SystemExit("benchmark must be SPY or 60/40")
+    return PortfolioConfig(
+        cash=float(extra.get("cash", PortfolioConfig().cash)),
+        costs=PortfolioCosts(slippage_bps=config.costs.slippage_bps,
+                             sec_fee_rate=config.costs.sec_fee_rate),
+        fractional=bool(extra.get("fractional", True)),
+        cash_yield=bool(extra.get("cash_yield", True)),
+        benchmark=benchmark,
+    )
+
+
+def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, params: dict,
+                  symbols: list[str] | None, start: datetime, end: datetime, pconfig,
+                  label: str | None = None,
+                  strategy_version_id: int | None = None) -> tuple[int, dict, dict, object]:
+    from datetime import date as date_cls
+
+    from btest import daily
+    from btest.options import OptionBook
+    from btest.portfolio import Market, PortfolioEngine
+
+    cls = load_strategy_class(strategy_path)
+    strategy = cls(**params)
+    universe = [s.upper() for s in (symbols or list(getattr(cls, "universe", [])))]
+    if not universe:
+        raise SystemExit(f"{cls.__name__} has no universe; set universe = [...] or pass symbols")
+    first_day, last_day = start.date(), end.date()
+    # The full calendar, published a year ahead: the daily cache covers every bar and
+    # month_end / month_position see the sessions after a run's last day.
+    all_sessions = db.get_sessions(conn, date_cls(2000, 1, 1), date_cls(2100, 1, 1))
+    sessions = all_sessions.filter(pl.col("date") < last_day)
+    need = list(dict.fromkeys(universe + list({"SPY": ["SPY"], "60/40": ["SPY", "AGG"]}
+                                              [pconfig.benchmark])))
+    splits = {s: db.get_splits(conn, s) for s in need}
+    dividends = {s: db.get_dividends(conn, s) for s in need}
+    frames = {}
+    for s in need:
+        df = daily.load(data_dir, s, all_sessions, pconfig.timing, splits[s], dividends[s])
+        if df.is_empty():
+            raise SystemExit(f"no bars for {s}; run `btest ingest {s}`")
+        frames[s] = df.filter(pl.col("date") < last_day)
+    starts = [frames[s]["date"].min() for s in universe]
+    dates = [d for d in sessions["date"].to_list() if d >= min(starts)]
+    market = Market(dates, {s: frames[s] for s in universe})
+    engine = PortfolioEngine(market, all_sessions, pconfig, splits, dividends,
+                             db.get_rates(conn, "DTB3"), OptionBook(conn, end))
+    t0 = time.perf_counter()
+    result = engine.run(strategy, first_day, last_day)
+    duration = time.perf_counter() - t0
+    if result.equity.is_empty():
+        raise SystemExit(f"no sessions between {first_day} and {last_day}")
+
+    equity = result.equity.join(
+        benchmark_from_daily(frames, pconfig.benchmark, result.equity["date"], pconfig.cash),
+        on="date", how="left")
+    rf = db.get_rates(conn, "DTB3")
+    stats = metrics.compute(equity, rf) | metrics.trade_stats(
+        result.fills, equity, lambda sym: 100 if len(sym) > 15 else 1) | {
+        "exposure": result.exposure, "bars": result.bars, "engine_s": duration,
+        "notes": result.notes[:200],
+    }
+    bench = metrics.compute(equity.select("date", pl.col("benchmark").alias("equity")), rf)
+    commit, dirty = _git() if strategy_version_id is None else (None, None)
+    run_id = db.save_run(conn, {
+        "strategy": f"{label or strategy_path.name}:{cls.__name__}",
+        "strategy_sha256": hashlib.sha256(strategy_path.read_bytes()).hexdigest(),
+        "params": strategy.params,
+        "symbols": universe,
+        "start_ts": start,
+        "end_ts": end,
+        "config": pconfig.to_dict() | {"timeframe": "1D", "engine": "portfolio",
+                                       "rebalance": getattr(cls, "rebalance", "daily")},
+        "git_commit": commit,
+        "git_dirty": dirty,
+        "metrics": stats,
+        "benchmark_metrics": bench | {"name": pconfig.benchmark},
         "duration_s": duration,
         "strategy_version_id": strategy_version_id,
     }, result.fills, equity)

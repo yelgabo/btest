@@ -13,11 +13,15 @@ from psycopg.types.json import Jsonb
 
 from btest.bars import TIMEFRAMES
 from btest.config import Settings
+from btest.portfolio import SCHEDULES
 from btest.sweep import parse_grid
 
 NAME_RE = re.compile(r"^[a-z0-9_]+(/[a-z0-9_]+)*$")
 MAX_COMBOS = 5000
 COST_KEYS = {"cash", "slippage_bps", "commission_per_share", "sec_fee_rate", "allow_short"}
+# Portfolio (decide) runs only.
+FLAG_KEYS = {"fractional", "cash_yield"}
+BENCHMARKS = ("SPY", "60/40")
 
 # What "New strategy" opens with: every hook and call, commented.
 TEMPLATE = (Path(__file__).parent / "templates" / "strategy_template.py").read_text()
@@ -87,6 +91,9 @@ class Inspection:
     pane: str = "price"
     levels: list | None = None
     timeframe: str = "1m"
+    has_decide: bool = False
+    universe: list | None = None
+    rebalance: str = "daily"
 
 
 def _literal(cls: ast.ClassDef, name: str):
@@ -116,12 +123,20 @@ def inspect_code(code: str, kind: str = "strategy") -> Inspection:
                           None)
     cls = classes[0]
     values = {}
+    portfolio_errors = {}
     for name, rule in (("params", "a literal dict (numbers, strings, booleans)"),
                        ("pane", '"price" or "own"'), ("levels", "a literal list of numbers"),
-                       ("timeframe", 'one of "1m", "5m", "15m", "30m", "1h", "1D"')):
+                       ("timeframe", 'one of "1m", "5m", "15m", "30m", "1h", "1D"'),
+                       ("universe", "a literal list of symbols"),
+                       ("rebalance", '"daily", "weekly", "month_end" or "month_start"')):
         try:
             values[name], _ = _literal(cls, name)
         except ValueError:
+            # universe and rebalance only matter to decide() strategies; checked below.
+            if name in ("universe", "rebalance"):
+                values[name] = None
+                portfolio_errors[name] = f"{name} must be {rule}."
+                continue
             return Inspection(cls.name, {}, False, f"{name} must be {rule}.",
                               _literal_line(cls, name))
     params = values["params"] if isinstance(values["params"], dict) else {}
@@ -137,7 +152,21 @@ def inspect_code(code: str, kind: str = "strategy") -> Inspection:
         return Inspection(cls.name, params, has_signals,
                           f"timeframe must be one of {', '.join(TIMEFRAMES)}.",
                           _literal_line(cls, "timeframe"), pane, levels, timeframe)
-    return Inspection(cls.name, params, has_signals, None, None, pane, levels, timeframe)
+    has_decide = any(isinstance(n, ast.FunctionDef) and n.name == "decide" for n in cls.body)
+    universe = [str(x).upper() for x in values["universe"] or [] if isinstance(x, str)]
+    rebalance = values["rebalance"] if isinstance(values["rebalance"], str) else "daily"
+    if kind == "strategy" and has_decide:
+        error = next(iter(portfolio_errors.values()), None)
+        if error is None and not universe:
+            error = "A strategy with decide() needs universe = [\"SPY\", ...]."
+        elif error is None and rebalance not in SCHEDULES:
+            error = f"rebalance must be one of {', '.join(SCHEDULES)}."
+        if error:
+            line = _literal_line(cls, "universe" if not universe else "rebalance") or cls.lineno
+            return Inspection(cls.name, params, has_signals, error, line, pane, levels,
+                              timeframe, has_decide, universe, rebalance)
+    return Inspection(cls.name, params, has_signals, None, None, pane, levels, timeframe,
+                      has_decide, universe, rebalance)
 
 
 def _literal_line(cls: ast.ClassDef, name: str) -> int | None:
@@ -223,6 +252,8 @@ def get(conn: psycopg.Connection, sid: int, version: int | None = None) -> dict 
         "pane": info.pane, "levels": info.levels or [], "timeframe": info.timeframe,
         "version_id": row[0], "version": row[1], "latest": versions[0][1], "code": row[2],
         "class_name": info.class_name, "params": info.params, "has_signals": info.has_signals,
+        "has_decide": info.has_decide, "universe": info.universe or [],
+        "rebalance": info.rebalance,
         "parse_error": info.error, "parse_error_line": info.error_line,
         "versions": [{"id": v[0], "version": v[1], "created_at": v[2], "sha256": v[3],
                       "runs": v[4]} for v in versions],
@@ -286,13 +317,19 @@ def import_files(conn: psycopg.Connection, folder: Path, kind: str = "strategy")
     return added
 
 
-def validate_spec(kind: str, spec: dict, settings: Settings, has_signals: bool) -> dict:
+def validate_spec(kind: str, spec: dict, settings: Settings, has_signals: bool,
+                  universe: list[str] | None = None) -> dict:
     """Normalise a run or sweep request from the browser, or raise ValueError with a message
-    the page can show."""
+    the page can show. A strategy with a universe (one with decide()) always runs on it."""
     if kind not in ("run", "sweep"):
         raise ValueError("kind must be run or sweep.")
     out: dict = {}
-    if kind == "run":
+    if universe and kind == "sweep":
+        raise ValueError("Sweeps of decide() strategies need the portfolio fast path, which is "
+                         "not built yet. Run single settings instead.")
+    if universe:
+        symbols = list(universe)
+    elif kind == "run":
         symbols = spec.get("symbols") or []
         if isinstance(symbols, str):
             symbols = [s for s in re.split(r"[\s,]+", symbols) if s]
@@ -342,8 +379,18 @@ def validate_spec(kind: str, spec: dict, settings: Settings, has_signals: bool) 
     if not isinstance(params, dict):
         raise ValueError("params must be an object.")
     out["params"] = {k: v for k, v in params.items() if kind == "run" or k not in out["grid"]}
-    costs = {k: v for k, v in (spec.get("config") or {}).items() if k in COST_KEYS}
+    raw_config = spec.get("config") or {}
+    costs = {k: v for k, v in raw_config.items() if k in COST_KEYS}
+    if universe:
+        costs.pop("allow_short", None)
+        costs.update({k: bool(raw_config[k]) for k in FLAG_KEYS if k in raw_config})
+        if "benchmark" in raw_config:
+            if raw_config["benchmark"] not in BENCHMARKS:
+                raise ValueError(f"benchmark must be one of {', '.join(BENCHMARKS)}.")
+            costs["benchmark"] = raw_config["benchmark"]
     for k, v in costs.items():
+        if k in FLAG_KEYS or k == "benchmark":
+            continue
         if k == "allow_short":
             costs[k] = bool(v)
         elif not isinstance(v, (int, float)) or v < 0:

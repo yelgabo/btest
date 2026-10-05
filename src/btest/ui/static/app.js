@@ -13,6 +13,8 @@ const spct = (v, d = 2) => (v == null ? "–" : (v > 0 ? "+" : "") + pct(v, d));
 const num = (v, d = 2) => (v == null ? "–" : sign(v, Math.abs(v).toLocaleString("en-US",
     {minimumFractionDigits: d, maximumFractionDigits: d})));
 const int = v => (v == null ? "–" : Math.round(v).toLocaleString("en-US"));
+// Share counts: whole numbers as is, fractional shares to three decimals.
+const shares = v => (v == null ? "–" : v.toLocaleString("en-US", {maximumFractionDigits: 3}));
 const money = v => (v == null ? "–" : sign(v, "$" + Math.abs(Math.round(v)).toLocaleString("en-US")));
 const day = s => (s ? s.slice(0, 10) : "–");
 const tone = v => (v == null || v === 0 ? "" : v > 0 ? "up" : "down");
@@ -505,7 +507,7 @@ async function runPage(id) {
         {key: "ts", label: "Time (UTC)", value: f => f[0], cell: f => h("span", {class: "num", style: "font-size:12px"},
             f[0].replace("T", " ").slice(0, 16))},
         {key: "sym", label: "Symbol", cell: f => f[1]},
-        {key: "qty", label: "Qty", numeric: true, value: f => f[2], cell: f => (f[2] > 0 ? "+" : "") + int(f[2]).replace("-", MINUS),
+        {key: "qty", label: "Qty", numeric: true, value: f => f[2], cell: f => (f[2] > 0 ? "+" : "") + shares(f[2]).replace("-", MINUS),
          cls: f => tone(f[2])},
         {key: "px", label: "Price", numeric: true, value: f => f[3], cell: f => num(f[3], 2)},
         {key: "cost", label: "Cost", numeric: true, value: f => f[4], cell: f => num(f[4], 2)},

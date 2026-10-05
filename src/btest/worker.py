@@ -184,6 +184,9 @@ def run(poll_s: float = 1.0) -> None:
             log(f"marked {len(stale)} interrupted job(s) failed")
     stop = threading.Event()
     threading.Thread(target=ingest_loop, args=(settings, stop), daemon=True).start()
+    if settings.alpaca_key and os.environ.get("BTEST_LIVE", "on") != "off":
+        from btest.live import live_loop
+        threading.Thread(target=live_loop, args=(settings, stop), daemon=True).start()
     if os.environ.get("BTEST_INTERNAL_TOKEN"):
         threading.Thread(target=serve_bars, args=(settings,), daemon=True).start()
     log(f"worker {worker} ready, data in {settings.data_dir}")

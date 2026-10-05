@@ -7,6 +7,8 @@ import polars as pl
 from btest.sources.base import BAR_SCHEMA, Dividend, Split
 
 DATA_URL = "https://data.alpaca.markets"
+# Option contract listings live on the trading API; paper keys can read them.
+TRADING_URL = "https://paper-api.alpaca.markets"
 # The free plan rejects SIP requests that reach into the most recent 15 minutes.
 SIP_DELAY = timedelta(minutes=16)
 RETRY_STATUS = {429, 500, 502, 503, 504}
@@ -30,6 +32,28 @@ class AlpacaSource:
                 return resp.json()
             self._sleep(min(2 ** attempt, 60))
         raise AssertionError("unreachable")
+
+    def _get_trading(self, path: str, params: dict) -> dict:
+        """Trading API reads (option contracts); same keys, different host."""
+        for attempt in range(self._max_retries + 1):
+            resp = self._client.get(TRADING_URL + path, params=params, headers=self._headers)
+            if resp.status_code not in RETRY_STATUS or attempt == self._max_retries:
+                resp.raise_for_status()
+                return resp.json()
+            self._sleep(min(2 ** attempt, 60))
+        raise AssertionError("unreachable")
+
+    def option_bars(self, symbols: list[str], start: datetime, end: datetime,
+                    timeframe: str) -> list[tuple]:
+        """(symbol, ts, open, high, low, close, volume, trades, vwap) rows."""
+        params = {"symbols": ",".join(symbols), "timeframe": timeframe, "start": _iso(start),
+                  "end": _iso(end), "limit": 10000, "sort": "asc"}
+        rows = []
+        for page in self._pages("/v1beta1/options/bars", params):
+            for sym, bars in (page.get("bars") or {}).items():
+                rows += [(sym, datetime.fromisoformat(b["t"].replace("Z", "+00:00")), b["o"],
+                          b["h"], b["l"], b["c"], b["v"], b["n"], b.get("vw")) for b in bars]
+        return rows
 
     def _pages(self, path: str, params: dict):
         token = None

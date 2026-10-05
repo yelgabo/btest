@@ -2,6 +2,9 @@
 
 It runs as is and places no trades. Fill in on_bar (and signals, if you want sweeps).
 Delete the comments you no longer need.
+
+For strategies that hold several symbols and trade on the live system's schedule, start from
+templates/portfolio instead: it uses decide(as_of, data) rather than on_bar.
 """
 
 import numpy as np

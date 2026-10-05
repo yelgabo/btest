@@ -194,7 +194,9 @@ def create_app() -> Starlette:
         return JSON({
             "symbols": settings.symbols, "history_start": settings.history_start,
             "holdout_start": settings.holdout_start, "template": lab.TEMPLATE,
-            "defaults": {"cash": 100_000.0, "slippage_bps": Costs().slippage_bps,
+            "defaults": {"cash": 100_000.0, "portfolio_cash": 20_000.0,
+                         "slippage_bps": Costs().slippage_bps,
+                         "fractional": True, "cash_yield": True, "benchmark": "SPY",
                          "commission_per_share": Costs().commission_per_share,
                          "sec_fee_rate": Costs().sec_fee_rate, "allow_short": False},
         })
@@ -252,7 +254,8 @@ def create_app() -> Starlette:
                 if s["parse_error"]:
                     line = f" (line {s['parse_error_line']})" if s["parse_error_line"] else ""
                     return bad(f"{s['parse_error']}{line}")
-                spec = lab.validate_spec(kind, data.get("spec") or {}, settings, s["has_signals"])
+                spec = lab.validate_spec(kind, data.get("spec") or {}, settings, s["has_signals"],
+                                        s["universe"] if s["has_decide"] else None)
                 jid = lab.submit(c, s["version_id"], kind, spec)
         except (TypeError, ValueError) as e:
             return bad(str(e))

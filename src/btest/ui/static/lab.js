@@ -537,15 +537,31 @@ export async function labPage(id, ui) {
         const date = key => h("input", {type: "date", value: form[key], min: labConfig.history_start,
                                          oninput: ev => { form[key] = ev.target.value; saveForm(); updHoldout(); }});
         const params = Object.entries(s.params);
-        formEl.replaceChildren(
-            h("div", {class: "fld"}, h("span", {}, "Symbols"), h("div", {class: "chips"}, labConfig.symbols.map(sym =>
+        const flag = (k, label) => h("label", {class: "check"}, h("input", {type: "checkbox",
+            checked: k in form.config ? !!form.config[k] : labConfig.defaults[k], onchange: ev => {
+                form.config[k] = ev.target.checked; saveForm();
+            }}), ` ${label}`);
+        const symbolsField = s.has_decide
+            ? h("div", {class: "fld"}, h("span", {}, "Universe"), h("div", {class: "muted", style: "margin:0"},
+                h("b", {class: "num", style: "color:var(--ink)"}, s.universe.join(", ")), ", set by ",
+                h("code", {class: "num"}, "universe = [...]"), " in the code"))
+            : h("div", {class: "fld"}, h("span", {}, "Symbols"), h("div", {class: "chips"}, labConfig.symbols.map(sym =>
                 h("label", {class: "chip"}, h("input", {type: "checkbox", checked: form.symbols.includes(sym), onchange: ev => {
                     form.symbols = ev.target.checked ? [...new Set([...form.symbols, sym])] : form.symbols.filter(x => x !== sym);
                     saveForm();
-                }}), sym)))),
-            h("div", {class: "fld"}, h("span", {}, "Bars"), h("div", {class: "muted", style: "margin:0"},
+                }}), sym))));
+        const barsField = s.has_decide
+            ? h("div", {class: "fld"}, h("span", {}, "Decides"), h("div", {class: "muted", style: "margin:0"},
+                h("b", {style: "color:var(--ink)"}, {daily: "Every session", weekly: "Last session of each week",
+                    month_end: "Last session of each month", month_start: "First session of each month"}[s.rebalance]),
+                " at 15:30 New York time on data through 15:14; orders fill at 15:45. Set by ",
+                h("code", {class: "num"}, `rebalance = "${s.rebalance}"`), "."))
+            : h("div", {class: "fld"}, h("span", {}, "Bars"), h("div", {class: "muted", style: "margin:0"},
                 h("b", {class: "num", style: "color:var(--ink)"}, s.timeframe), " candles, set by ",
-                h("code", {class: "num"}, `timeframe = "${s.timeframe}"`), s.timeframe === "1m" ? " (the default)" : "", " in the code")),
+                h("code", {class: "num"}, `timeframe = "${s.timeframe}"`), s.timeframe === "1m" ? " (the default)" : "", " in the code"));
+        formEl.replaceChildren(
+            symbolsField,
+            barsField,
             h("div", {class: "row2"}, field("From", date("start")), field("Until", date("end"))),
             holdoutRow,
             params.length ? h("div", {class: "fld"}, h("span", {}, "Params"), h("div", {class: "params"}, params.map(([k, v]) =>
@@ -559,11 +575,16 @@ export async function labPage(id, ui) {
             h("details", {class: "costs"}, h("summary", {}, "Costs and cash"),
               h("div", {class: "row2"},
                 ...[["cash", "Cash"], ["slippage_bps", "Slippage, bps"], ["commission_per_share", "Commission per share"], ["sec_fee_rate", "SEC fee rate"]].map(([k, label]) =>
-                    field(label, h("input", {type: "number", step: "any", min: 0, value: form.config[k] ?? "", placeholder: labConfig.defaults[k],
+                    field(label, h("input", {type: "number", step: "any", min: 0, value: form.config[k] ?? "", placeholder: k === "cash" && s.has_decide ? labConfig.defaults.portfolio_cash : labConfig.defaults[k],
                                              oninput: ev => { if (ev.target.value === "") delete form.config[k]; else form.config[k] = +ev.target.value; saveForm(); }})))),
-              h("label", {class: "check"}, h("input", {type: "checkbox", checked: !!form.config.allow_short, onchange: ev => {
+              ...(s.has_decide ? [
+                  flag("fractional", "Fractional shares"),
+                  flag("cash_yield", "Idle cash earns the T-bill rate"),
+                  field("Benchmark", h("select", {onchange: ev => { form.config.benchmark = ev.target.value; saveForm(); }},
+                      ["SPY", "60/40"].map(b => h("option", {selected: b === (form.config.benchmark || labConfig.defaults.benchmark)}, b)))),
+              ] : [h("label", {class: "check"}, h("input", {type: "checkbox", checked: !!form.config.allow_short, onchange: ev => {
                   form.config.allow_short = ev.target.checked; saveForm();
-              }}), " Allow short selling")),
+              }}), " Allow short selling")])),
             h("div", {class: "actions"}, runBtn, h("small", {class: "muted"}, navigator.platform.includes("Mac") ? "⌘↵" : "Ctrl+Enter")));
         updHoldout();
 
@@ -575,6 +596,7 @@ export async function labPage(id, ui) {
             countEl.textContent = any ? `${int(n)} combinations` : "Give at least one param a list of values.";
         };
         sweepEl.replaceChildren(
+            s.has_decide ? h("p", {class: "muted"}, "Sweeps of decide() strategies need the portfolio fast path, which is not built yet.") :
             !s.has_signals ? h("p", {class: "muted"}, "Sweeps use the fast path. Add a signals() method to this strategy to enable them.") :
             !numeric.length ? h("p", {class: "muted"}, "No numeric params to sweep.") :
             h("div", {},
@@ -611,7 +633,7 @@ export async function labPage(id, ui) {
         }
         clearError();
         const spec = kind === "run"
-            ? {symbols: form.symbols, start: form.start, end: form.end, params: form.params, config: form.config, spend_holdout: !!form.spend_holdout}
+            ? {symbols: s.has_decide ? s.universe : form.symbols, start: form.start, end: form.end, params: form.params, config: form.config, spend_holdout: !!form.spend_holdout}
             : {symbol: form.sweepSymbol || form.symbols[0], start: form.start, end: form.end > holdoutAt ? holdoutAt : form.end,
                params: form.params, config: form.config, grid: Object.fromEntries(Object.entries(form.grid).filter(([, v]) => v.trim()))};
         try {

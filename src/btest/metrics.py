@@ -52,9 +52,9 @@ def _drawdown(eq: pl.DataFrame) -> tuple[float, int]:
     return worst, longest
 
 
-def trade_stats(fills, equity: pl.DataFrame) -> dict:
+def trade_stats(fills, equity: pl.DataFrame, multiplier=lambda symbol: 1) -> dict:
     closes = [f.realized_pnl for f in fills if f.realized_pnl is not None]
-    traded = sum(abs(f.qty) * f.price for f in fills)
+    traded = sum(abs(f.qty) * f.price * multiplier(f.symbol) for f in fills)
     avg_eq = equity["equity"].mean() if not equity.is_empty() else 0.0
     years = ((equity["date"][-1] - equity["date"][0]).days / 365.25
              if equity.height > 1 else 0.0)

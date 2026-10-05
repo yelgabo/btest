@@ -58,7 +58,8 @@ def print_summary(run_id: int, stats: dict, bench: dict, duration: float,
 
 
 def _cost_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--cash", type=float, default=100_000.0)
+    p.add_argument("--cash", type=float, default=None,
+                   help="default $100,000 (decide() strategies: $20,000)")
     p.add_argument("--slippage-bps", type=float, default=1.0)
     p.add_argument("--commission-per-share", type=float, default=0.0)
     p.add_argument("--sec-fee-rate", type=float, default=Costs().sec_fee_rate,
@@ -67,7 +68,8 @@ def _cost_args(p: argparse.ArgumentParser) -> None:
 
 
 def _config(args) -> Config:
-    return Config(cash=args.cash, allow_short=args.allow_short, costs=Costs(
+    return Config(cash=args.cash if args.cash is not None else 100_000.0,
+                  allow_short=args.allow_short, costs=Costs(
         slippage_bps=args.slippage_bps, commission_per_share=args.commission_per_share,
         sec_fee_rate=args.sec_fee_rate,
     ))
@@ -93,6 +95,28 @@ def main() -> None:
     sub.add_parser("coverage", help="refresh the bar summary the UI reads from Postgres")
     p_ing = sub.add_parser("ingest", help="backfill or update bars and corporate actions")
     p_ing.add_argument("symbols", nargs="*", help="defaults to btest.toml symbols")
+    p_opt = sub.add_parser("ingest-options",
+                           help="fetch monthly puts and their 30-minute bars into Postgres")
+    p_opt.add_argument("underlyings", nargs="+")
+    p_opt.add_argument("--start", default="2024-02-01", help="first expiry to fetch")
+    p_opt.add_argument("--end", default=None, help="last expiry; defaults to 90 days ahead")
+    p_live = sub.add_parser("live", help="deploy lab strategies to Alpaca paper trading")
+    live_sub = p_live.add_subparsers(dest="live_cmd", required=True)
+    p_dep = live_sub.add_parser("deploy", help="create a (disabled) deployment")
+    p_dep.add_argument("name")
+    p_dep.add_argument("strategy", help="lab strategy name, e.g. portfolio/trend_gtaa")
+    p_dep.add_argument("--version", type=int, help="defaults to the latest")
+    p_dep.add_argument("--capital", type=float, default=20_000.0)
+    p_dep.add_argument("-p", "--param", type=_param, action="append", default=[])
+    live_sub.add_parser("list", help="deployments, their last decisions and recent events")
+    for name in ("enable", "disable"):
+        live_sub.add_parser(name).add_argument("name")
+    p_dec = live_sub.add_parser("decide", help="dry run: today's targets and orders, no trades")
+    p_dec.add_argument("name")
+    p_dec.add_argument("--session", help="a past session to decide on, e.g. 2026-10-02")
+    live_sub.add_parser("configure-account",
+                        help="apply cash-account settings (no margin, no shorting) to the "
+                             "paper account")
     p_chk = sub.add_parser("check-adjust", help="compare our adjusted bars with Alpaca's")
     p_chk.add_argument("symbols", nargs="*")
     sub.add_parser("worker", help="run lab jobs from the website and keep bars current")
@@ -109,7 +133,13 @@ def main() -> None:
     p_bars.add_argument("end")
     p_run = sub.add_parser("run", help="backtest a strategy file")
     p_run.add_argument("strategy", type=Path)
-    p_run.add_argument("symbols", nargs="+")
+    p_run.add_argument("symbols", nargs="*",
+                       help="symbols to load; decide() strategies default to their universe")
+    p_run.add_argument("--no-fractional", action="store_true",
+                       help="decide() strategies: whole shares only")
+    p_run.add_argument("--no-cash-yield", action="store_true",
+                       help="decide() strategies: idle cash earns nothing")
+    p_run.add_argument("--benchmark", default="SPY", choices=["SPY", "60/40"])
     p_run.add_argument("--start", required=True, help="UTC date or datetime")
     p_run.add_argument("--end", required=True, help="exclusive")
     p_run.add_argument("-p", "--param", type=_param, action="append", default=[],
@@ -147,7 +177,8 @@ def main() -> None:
         uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning",
                     proxy_headers=True, forwarded_allow_ips="*")
         return
-    settings = config.load(need_alpaca=args.cmd in ("ingest", "check-adjust"))
+    settings = config.load(need_alpaca=args.cmd in ("ingest", "check-adjust", "ingest-options",
+                                                     "live"))
     with db.connect(settings.database_url) as conn:
         if args.cmd == "migrate":
             print("applied:", db.migrate(conn) or "nothing new")
@@ -161,6 +192,9 @@ def main() -> None:
                 added += [f"indicator {n}" for n in lab.import_files(conn, folder, "indicator")]
             print("added:", added or "nothing new")
             return
+        if args.cmd == "live":
+            live_command(conn, settings, args)
+            return
         if args.cmd == "coverage":
             for symbol in settings.symbols:
                 record_coverage(conn, settings.data_dir, symbol)
@@ -169,6 +203,18 @@ def main() -> None:
         symbols = getattr(args, "symbols", None) or settings.symbols
         if args.cmd == "ingest":
             ingest(conn, source, settings.data_dir, symbols, settings.history_start)
+        elif args.cmd == "ingest-options":
+            from datetime import timedelta
+
+            from btest.options import ingest_options
+            last = (date.fromisoformat(args.end) if args.end
+                    else date.today() + timedelta(days=90))
+            for u in args.underlyings:
+                closes = loader.daily_closes(settings.data_dir, u.upper())
+                if closes.is_empty():
+                    raise SystemExit(f"no bars for {u}; add it to btest.toml and ingest first")
+                ingest_options(conn, source, u.upper(), date.fromisoformat(args.start), last,
+                               closes)
         elif args.cmd == "check-adjust":
             report = check_adjustments(conn, source, settings.data_dir, symbols)
             with pl.Config(tbl_rows=-1):
@@ -187,6 +233,9 @@ def main() -> None:
             run_id, stats, bench, _ = run_backtest(
                 conn, settings.data_dir, args.strategy, dict(args.param), args.symbols,
                 _utc(args.start), _utc(args.end), run_config,
+                extra={"fractional": not args.no_fractional,
+                       "cash_yield": not args.no_cash_yield, "benchmark": args.benchmark}
+                | ({"cash": args.cash} if args.cash is not None else {}),
             )
             print_summary(run_id, stats, bench, stats["engine_s"],
                           getattr(load_strategy_class(args.strategy), "timeframe", "1m"))
@@ -233,3 +282,57 @@ def main() -> None:
                                     db.get_dividends(conn, args.symbol))
             with pl.Config(tbl_rows=50, tbl_cols=-1):
                 print(bars)
+
+
+def live_command(conn, settings, args) -> None:
+    from btest import live
+    from btest.broker import CASH_ACCOUNT, AlpacaBroker
+    broker = AlpacaBroker(settings.alpaca_key, settings.alpaca_secret, paper=True)
+    if args.live_cmd == "deploy":
+        dep_id = live.deploy(conn, args.name, args.strategy, args.version, args.capital,
+                             dict(args.param))
+        print(f"deployment {dep_id} created, disabled. Enable with: btest live enable {args.name}")
+    elif args.live_cmd in ("enable", "disable"):
+        n = conn.execute("UPDATE live.deployment SET enabled = %s, updated_at = now() "
+                         "WHERE name = %s", (args.live_cmd == "enable", args.name)).rowcount
+        conn.commit()
+        print(f"{args.name}: {args.live_cmd}d" if n else f"no deployment {args.name}")
+    elif args.live_cmd == "list":
+        for d in live.deployments(conn, only_enabled=False):
+            print(f"{d.name}: {d.strategy_name} v{d.version}, ${d.capital:,.0f}, {d.mode}, "
+                  f"{'enabled' if d.enabled else 'disabled'}")
+            for r in conn.execute("SELECT session, status, error FROM live.decision WHERE "
+                                  "deployment_id = %s ORDER BY session DESC LIMIT 5", (d.id,)):
+                print(f"  {r[0]} {r[1]}{' ' + r[2] if r[2] else ''}")
+        for r in conn.execute("SELECT ts, level, message FROM live.event "
+                              "ORDER BY id DESC LIMIT 10"):
+            print(f"{r[0]:%Y-%m-%d %H:%M} {r[1]}: {r[2]}")
+    elif args.live_cmd == "configure-account":
+        print(broker.configure(CASH_ACCOUNT))
+    elif args.live_cmd == "decide":
+        [dep] = [d for d in live.deployments(conn, only_enabled=False) if d.name == args.name] or [
+            None]
+        if dep is None:
+            raise SystemExit(f"no deployment {args.name}")
+        session = (date.fromisoformat(args.session) if args.session else
+                   datetime.now(UTC).date())
+        universe = live._universe_of(dep.code)
+        account = live.account_state(broker, universe)
+        result = live.run_decision(dep, account, session)
+        if result.get("error"):
+            print(result.get("log", ""))
+            raise SystemExit(f"decision failed: {result['error']}")
+        print(json.dumps({k: result[k] for k in ("session", "as_of", "targets", "equity")},
+                         indent=2, default=str))
+        targets = result["targets"] or {"weights": {}}
+        prices = {s: p for s, p in result["prices"].items() if p is not None}
+        exits, orders = live.plan_stock_orders(targets["weights"], account["stocks"], prices,
+                                               live.strategy_equity(dep, account), 1.0)
+        print("orders it would send (dollars; sells first):")
+        for s in sorted(exits):
+            print(f"  sell all {s}")
+        for s, v in sorted(orders.items(), key=lambda kv: kv[1]):
+            print(f"  {'buy ' if v > 0 else 'sell'} {s} ${abs(v):,.2f}")
+        for s, q in (targets.get("options") or {}).items():
+            print(f"  option {s}: target {q} contracts")
+

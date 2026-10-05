@@ -1,4 +1,11 @@
-symbols = ["SPY", "META", "NVDA"]
+symbols = [
+    "SPY", "META", "NVDA",
+    # Asset-class ETFs for the portfolio strategies.
+    "QQQ", "IWM", "DIA", "EFA", "EEM", "VNQ", "GLD", "DBC", "TLT", "IEF", "SHY", "BIL", "AGG",
+    "LQD", "HYG",
+    # Select Sector SPDRs. XLRE starts 2015-10, XLC 2018-06.
+    "XLK", "XLF", "XLV", "XLE", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC",
+]
 history_start = 2016-01-01
 data_dir = "data"
 holdout_start = 2025-01-01

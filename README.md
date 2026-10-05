@@ -79,6 +79,54 @@ import-strategies` copies `strategies/*.py` into the lab.
 
 Indicators: `rsi`, `zscore`, `vwap`, `atr`, `volatility`, `roc`.
 
+## Portfolio strategies
+
+A strategy with a `decide(as_of, data)` method (start from `strategies/templates/portfolio.py`)
+holds several symbols and trades on the live system's schedule: one decision per scheduled
+session at 15:30 New York time on data through the 15:14 bar (the free SIP feed is 15 minutes
+behind), orders filling at the 15:45 bar's open. Half days shift with the close. It declares
+`universe = [...]` and `rebalance = "daily" | "weekly" | "month_end" | "month_start"` and
+returns target weights, `Targets(...)` with option contracts, or `None` for no change.
+
+The portfolio engine trades like a cash account: notional orders, sells before buys, no
+leverage, fractional shares (on by default), idle cash earning the 3-month T-bill rate (on by
+default), written puts fully secured by cash and assigned at expiry. Benchmark: SPY or 60/40.
+
+```sh
+uv run btest run strategies/portfolio/trend_gtaa.py --start 2016-01-01 --end 2025-01-01
+uv run btest ingest-options XLF EEM          # monthly puts + 30-minute bars, Feb 2024 on
+uv run btest run strategies/options/put_write.py --start 2024-02-01 --end 2025-01-01
+```
+
+| Strategy | Rebalance | Idea |
+|---|---|---|
+| `baseline/buy_hold` | once | All in one symbol, held |
+| `portfolio/trend_gtaa` | month end | Five asset classes, each held only above its 10-month average |
+| `portfolio/dual_momentum` | month end | US or international stocks, whichever is stronger, else bonds |
+| `portfolio/sector_momentum` | month end | Top 3 sector ETFs by 6-month return, cash below SPY's 200-day |
+| `mean_reversion/rsi2_basket` | daily | RSI(2) pullbacks across SPY, QQQ, IWM, DIA |
+| `calendar/turn_of_month` | daily | SPY from the last session of a month to the third of the next |
+| `risk/risk_parity` | month end | Stocks, bonds, gold by inverse volatility at a 10% vol target |
+| `options/put_write` | daily | Cash-secured monthly puts on XLF |
+
+Sweeps of portfolio strategies wait for a portfolio fast path.
+
+## Live trading (Alpaca paper)
+
+The worker trades enabled deployments on the same timing: 15:30 refresh bars and run
+`decide()` in the sandboxed child (no broker keys), 15:40 sell then buy, 16:15 read fills back
+and compare each with the backtest's fill price. A kill switch disables a deployment after a
+daily loss beyond `max_daily_loss`; orders above `max_order` x capital are refused. Strategies
+see cash capped at the deployed capital even when the account holds more.
+
+```sh
+uv run btest live configure-account          # no margin, no shorting
+uv run btest live deploy gtaa portfolio/trend_gtaa --capital 20000
+uv run btest live decide gtaa --session 2026-10-02   # dry run: targets and orders
+uv run btest live enable gtaa
+uv run btest live list
+```
+
 ## Timeframes
 
 A strategy sets `timeframe = "1D"` (or `5m`, `15m`, `30m`, `1h`; default `1m`). The runner,
