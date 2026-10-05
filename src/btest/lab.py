@@ -112,10 +112,12 @@ def inspect_code(code: str, kind: str = "strategy") -> Inspection:
         tree = ast.parse(code)
     except SyntaxError as e:
         return Inspection(None, {}, False, f"SyntaxError: {e.msg}", e.lineno)
+    # Base classes from btest such as olps.OnlineStrategy count too: any name ending in the
+    # base's name.
     classes = [
         n for n in tree.body if isinstance(n, ast.ClassDef)
-        and any((isinstance(b, ast.Name) and b.id == base)
-                or (isinstance(b, ast.Attribute) and b.attr == base) for b in n.bases)
+        and any((isinstance(b, ast.Name) and b.id.endswith(base))
+                or (isinstance(b, ast.Attribute) and b.attr.endswith(base)) for b in n.bases)
     ]
     if len(classes) != 1:
         return Inspection(None, {}, False,
