@@ -138,6 +138,32 @@ Numbers match the research doc's ranking.
 All ten pass the rule. #4 and #5 carry the most live work: #4 because the fast signal needs text
 extraction, #5 because options add assignment handling and a short backtest.
 
+## Fit with the strategy lab
+
+Strategies stay what they are today: one Python file with one `Strategy` subclass, edited,
+versioned, duplicated and run from the website's Strategies tab or from `strategies/` with the
+CLI. The new data sources change what a strategy can read, not how it is written or run.
+
+- **Strategy code never fetches data.** The worker's data jobs (filing watcher, price
+  snapshot, universe refresh) write to Postgres. Lab jobs already run in a child process with
+  secrets stripped (`child_env` in `worker.py`) as the `btest_runner` role, which has `SELECT`
+  on the `market` schema. New tables go in `market` (or a new schema added to `grant_runner`),
+  so a strategy reads SEC financials the same way it reads splits today.
+- **One new hook, same file shape.** `decide(as_of, data)` joins `on_bar` and `signals` as an
+  optional method on the subclass. Existing `on_bar` strategies keep working unchanged. The
+  strategy template (`templates/strategy_template.py`) documents the new hook and the `data`
+  calls (`universe`, `daily_closes`, `fundamentals`, `insider_trades`, `report`).
+- **Params stay editable and sweepable.** `holdings`, `skip_days` and the rest sit in `params`
+  like any strategy today; changing one in the editor and pressing Cmd/Ctrl+Enter reruns it.
+  Sweeps need the portfolio fast path (G9) or fall back to the event engine.
+- **The run form gains a universe option.** Today a run takes a symbol list from `btest.toml`.
+  A `decide` strategy declares `universe = "sp500"` (or an ETF list); the form shows it instead
+  of the symbol box.
+- **Live uses the same saved version.** Going live means pointing the scheduler at a lab
+  strategy version (`lab.strategy` row), so the code that trades is the exact version that was
+  backtested. Editing the strategy makes a new version; the live job keeps the old one until it
+  is switched over.
+
 ## What btest needs for live
 
 These sit next to the backtesting gaps (G1 to G14) in the research doc.
