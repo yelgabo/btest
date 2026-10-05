@@ -25,10 +25,21 @@ Step 8 can start once step 1 fixes the portfolio rules, and run alongside steps 
 strategy that passes its holdout check can move to paper trading from step 4 on; the holdout
 (2025 onward) is spent by the user, not by the agent.
 
-## Open decisions
+Step 9 depends only on steps 1, 2 (cash yield on collateral) and 4 (broker adapter for live).
+It does not need the stock universe, SEC data or the fast path, so it can move up to any
+point after step 4.
 
-1. Is 2016-2024 enough history for the stock strategies? If not, a paid source (Norgate $630 a
-   year, or Sharadar) adds 1998-2015. Needed before step 5.
-2. Are options in scope? Needed before step 9.
-3. Margin or cash account? A cash account rules out shorting, which only the lower-ranked
-   strategies need. Needed before step 4 goes live with real money.
+## Decisions (2026-10-04)
+
+1. **History:** 2016-2024 is enough for the stock strategies for now. No paid price data.
+2. **Options:** in scope (step 9). Alpaca's options history starts in February 2024 and the
+   holdout starts 2025-01-01, so put writing gets about ten months of development data. The
+   Cboe PutWrite index serves as a long-history check; a paid options source (Massive, from
+   2014) stays an option if ten months proves too thin.
+3. **Account:** cash only for now. Alpaca opens every account as a margin account and has no
+   separate cash account type. The equivalent is three settings on
+   `PATCH /v2/account/configurations`
+   ([docs](https://docs.alpaca.markets/us/reference/patchaccountconfig-1)):
+   `max_margin_multiplier: "1"`, `no_shorting: true`, `max_options_trading_level: 1` (covered
+   calls and cash-secured puts). The same call turns margin back on later. The backtest
+   matches it with `allow_short = False` and no leverage.
