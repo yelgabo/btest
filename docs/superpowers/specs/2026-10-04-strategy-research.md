@@ -257,6 +257,24 @@ Paid sources only buy time or older history:
 | [Norgate Data Platinum](https://norgatedata.com/stockmarketpackages.php) | Prices and index membership from 1990, delisted included | $630 a year |
 | [Massive](https://massive.com/pricing), ORATS, Cboe DataShop | Options history before 2024 (Massive from 2014) | Paid; options prices not public |
 
+### Using the same sources live
+
+A backtest is only honest if it uses each piece of data at the time it would arrive live.
+
+| Source | Live? | Timing to copy in the backtest |
+|---|---|---|
+| Alpaca prices | Yes | Free plan: real-time IEX (one exchange), SIP 15 minutes delayed. Daily and monthly strategies can decide shortly before the close and send market-on-close orders. |
+| S&P 500 membership | Yes, with lag | The GitHub list is updated by hand. Live, use the current list (for example the SPY fund's published holdings); a few days' lag barely matters for a monthly rebalance. |
+| SEC companyfacts | Yes | SEC says under a minute after a filing. Financials arrive with the 10-Q or 10-K, so the backtest must use the `filed` date, never the quarter end. |
+| SEC earnings releases | Partly | The 8-K (item 2.02) lands within a second, but the earnings figures sit in an untagged press release. The tagged numbers come with the 10-Q, often weeks later. A drift strategy either trades on the 10-Q date (catching less of the drift) or extracts EPS from the press release text. The backtest must use whichever the live system will. |
+| Insider trades | Yes, by another route | The quarterly data sets lag a full quarter. Live, read each Form 4 from EDGAR as it is filed (within two business days of the trade). The fields match, so the backtest can use the data sets keyed on filing date. |
+| FOMC dates | Yes | Published a year ahead. |
+| Alpaca options | Yes | Not latency-sensitive for monthly put writing. |
+
+btest itself has no live runner yet (phase 4 of the original design, Alpaca paper trading, has not
+started). Order placement, position reconciliation and scheduling are separate work from
+everything above.
+
 ## Order of work
 
 | Phase | Gaps | Unlocks | Size |
