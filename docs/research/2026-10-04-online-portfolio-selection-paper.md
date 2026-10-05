@@ -261,6 +261,36 @@ Not supported by this work:
 - Whether the 1998-2009 results contain after-hours prints beyond the two bad prints found.
 - Whether the one-day-delay lead over SPY on ETFs survives closing-auction costs.
 
+## All paper strategies in btest
+
+Every algorithm in the paper now runs as a btest lab strategy (`strategies/olps/`, library
+`src/btest/olps.py`, each port checked against the authors' functions in `tests/test_olps.py`).
+On the 16 ETFs, 2016-2024, btest timing, $20,000 (runs 35-42 and 43-70; CAGR at 0 bp / 0.7 bp,
+Sharpe T-bill and max drawdown at 0.7 bp):
+
+| Strategy | 0 bp | 0.7 bp | Sharpe | Max DD |
+|---|---|---|---|---|
+| CWMR (paper's variant) | 16.6% | 13.8% | 0.65 | -35.0% |
+| Meta ensemble, exponential weights (FU / OGU) | 13.6% | 12.4% | 0.62 | -37.9% |
+| Universal portfolios | 12.3% | 12.3% | 0.65 | -35.0% |
+| Aggregation (random base portfolios) | 12.3% | 12.3% | 0.65 | -35.0% |
+| Follow the leading history | 13.3% | 12.1% | 0.62 | -34.4% |
+| Follow the leader | 12.1% | 12.1% | 0.63 | -34.5% |
+| FTRL, EG (smoothing 1.0), aggregation algorithm | 11.9% | 11.9% | 0.62 | -35.8% |
+| CRP, monthly | 11.8% | 11.8% | 0.62 | -35.6% |
+| RMR | 11.8% | 11.8% | 0.62 | -35.8% |
+| Buy and hold, equal weight | 11.5% | 11.5% | 0.63 | -32.5% |
+| PAMR (paper's code) | 12.1% | 11.0% | 0.54 | -43.4% |
+| Meta ensemble, Newton (ONU) | 12.7% | 10.3% | 0.51 | -36.0% |
+| PAMR-1 (Li et al.) | 9.8% | 8.9% | 0.41 | -55.7% |
+| Pattern matching (histogram, semi-log-optimal) | 8.9% | 8.3% | 0.42 | -35.0% |
+| Anticor | 10.1% | 8.1% | 0.41 | -38.4% |
+| OLMAR (Li and Hoi) | 9.2% | 6.9% | 0.31 | -52.4% |
+
+SPY over the same window: 14.5%, Sharpe 0.73. Most follow-the-winner and meta strategies stay
+close to equal weights on these ETFs (turnover near 1x a year), so they track CRP. None of these
+runs beats SPY after costs.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.

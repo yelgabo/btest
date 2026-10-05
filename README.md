@@ -109,6 +109,11 @@ uv run btest run strategies/options/put_write.py --start 2024-02-01 --end 2025-0
 | `risk/risk_parity` | month end | Stocks, bonds, gold by inverse volatility at a 10% vol target |
 | `options/put_write` | daily | Cash-secured monthly puts on XLF |
 
+`strategies/olps/` holds the online portfolio selection algorithms from Lahanis, Liu and Zhou's
+NYU paper (follow-the-winner, follow-the-loser, pattern matching, meta-learning), built on
+`btest.olps` and tested against the authors' code (`tests/test_olps.py`). Review and
+replication: `docs/research/2026-10-04-online-portfolio-selection-paper.md`.
+
 Sweeps of portfolio strategies wait for a portfolio fast path.
 
 ## Live trading (Alpaca paper)
