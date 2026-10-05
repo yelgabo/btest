@@ -48,7 +48,7 @@ New York time on a full trading day. October 4, 2026; nothing here is built yet.
         universe companies; the nightly filing reconcile reads the daily index for misses; the
         15:30 price snapshot pulls Alpaca bars. All three append to the point-in-time store in
         Postgres. Bottom row: the 15:30 decision run reads the store as of now and writes target
-        weights; the 15:40 order run diffs targets against Alpaca positions and sends sells then
+        weights; the 15:45 order run diffs targets against Alpaca positions and sends sells then
         buys to the Alpaca trading API; the 16:15 reconcile reads fills back and compares them
         with the backtest fill model.
       </desc>
@@ -132,7 +132,7 @@ New York time on a full trading day. October 4, 2026; nothing here is built yet.
       <text class="detail" x="250" y="806" text-anchor="middle">same function as the backtest</text>
 
       <rect class="svc" x="620" y="690" width="420" height="140" rx="10"/>
-      <text class="time" x="830" y="724" text-anchor="middle">15:40</text>
+      <text class="time" x="830" y="724" text-anchor="middle">15:45</text>
       <text class="title" x="830" y="754" text-anchor="middle">Order run</text>
       <text class="detail" x="830" y="782" text-anchor="middle">diff targets vs positions</text>
       <text class="detail" x="830" y="806" text-anchor="middle">fractional day orders, sells first</text>
