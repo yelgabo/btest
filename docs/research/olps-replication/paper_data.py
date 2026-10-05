@@ -16,6 +16,24 @@ df = pd.read_csv(OLPS + "/Data/Price Relative Vectors/price_relative_vectors.csv
 rel_all = df.to_numpy(float)
 print(f"{df.shape[1]} tickers, {df.shape[0]} days, {df.index[0]} to {df.index[-1]}")
 
+# Reproduction of Tables 3-4 to four decimals, via the authors' notebook path.
+import benchmarks as bm
+_n = rel_all.shape[1]; _b0 = np.full(_n, 1 / _n)
+def _final(b_n):
+    return calculate_cumulative_wealth_over_time(b_n, rel_all)[-1]
+print("reproduction (final wealth):", {k: round(float(v), 4) for k, v in {
+    "CWMR": _final(ftl.cwmr(_b0, rel_all)), "PAMR": _final(ftl.pamr(_b0, rel_all)),
+    "Anticor": _final(ftl.anticor(_b0, rel_all)), "RMR": _final(ftl.rmr(_b0, rel_all)),
+    "OLMAR": _final(ftl.olmar(_b0, rel_all)), "FTRL": _final(ftw.follow_the_regularized_leader(_b0, rel_all)),
+    "EG": _final(ftw.exponential_gradient(_b0, rel_all)), "CRP": _final(np.tile(_b0, (len(rel_all), 1))),
+    "Buy and hold": float(np.mean(np.prod(rel_all, axis=0)))}.items()})
+for _name, _f in [("OLMAR", ftl.olmar), ("EG", ftw.exponential_gradient)]:
+    _b = np.asarray(_f(_b0, rel_all))
+    print(f"{_name}: days the target weights changed: {int((np.abs(np.diff(_b, axis=0)).sum(axis=1) > 1e-12).sum())} of {len(_b) - 1}")
+_lead = [c for c in df.columns if (df[c].values == 1.0).cumprod().sum() > 20]
+_tail = [c for c in df.columns if (df[c].values[::-1] == 1.0).cumprod().sum() > 20]
+print(f"tickers with >20 leading placeholder days: {len(_lead)}; with >20 trailing: {_tail}")
+
 # Spike-and-reverse pairs: a ratio below 0.6 followed the next day by one above 1.6, or vice versa.
 pairs = []
 for j, t in zip(*np.where(((rel_all[:-1] < 0.6) & (rel_all[1:] > 1.6)) | ((rel_all[:-1] > 1.6) & (rel_all[1:] < 0.6)))[::-1]):
@@ -42,7 +60,8 @@ def table(rel, label):
     for name, f in algos.items():
         b = np.asarray(f())
         rows = {"A paper": stats(b, rel), "A +1bp": stats(b, rel, 1), "A +5bp": stats(b, rel, 5),
-                "A +10bp": stats(b, rel, 10), "one-day delay": stats(b[:-1], rel[1:])}
+                "A +10bp": stats(b, rel, 10), "one-day delay": stats(b[:-1], rel[1:]),
+                "delay +5bp": stats(b[:-1], rel[1:], 5)}
         print(f"  {name:8}" + "  ".join(f"{k} {w:,.1f} ({c:.1%}, {s1:.2f}/{s2:.2f})" for k, (w, c, s1, s2) in rows.items()))
 
 table(rel_all, "All 93 tickers (paper sample)")
@@ -73,7 +92,13 @@ n = rel_all.shape[1]; b0 = np.full(n, 1 / n); crp = np.tile(b0, (len(rel_all), 1
 bc = np.asarray(ftl.cwmr(b0, rel_all)); bp = np.asarray(ftl.pamr(b0, rel_all))
 r_crp = daily_returns(crp, rel_all)
 print("\nPaired Sharpe tests vs CRP on the paper's data (annualized difference, z, p):")
+r_crp_lag = daily_returns(crp[:-1], rel_all[1:])
 for label, r, base in [("CWMR A", daily_returns(bc, rel_all), r_crp), ("CWMR A +10bp", daily_returns(bc, rel_all, 10), r_crp),
-                       ("CWMR one-day delay", daily_returns(bc[:-1], rel_all[1:]), daily_returns(crp[:-1], rel_all[1:])),
-                       ("PAMR A +10bp", daily_returns(bp, rel_all, 10), r_crp)]:
-    d, z, p = jk(r, base); print(f"  {label:22}{d:+6.2f}  z {z:+5.2f}  p {p:.4f}")
+                       ("CWMR one-day delay", daily_returns(bc[:-1], rel_all[1:]), r_crp_lag),
+                       ("CWMR delay +5bp", daily_returns(bc[:-1], rel_all[1:], 5), r_crp_lag),
+                       ("PAMR A", daily_returns(bp, rel_all), r_crp), ("PAMR A +10bp", daily_returns(bp, rel_all, 10), r_crp),
+                       ("PAMR one-day delay", daily_returns(bp[:-1], rel_all[1:]), r_crp_lag),
+                       ("PAMR delay +5bp", daily_returns(bp[:-1], rel_all[1:], 5), r_crp_lag),
+                       ("PAMR delay +10bp", daily_returns(bp[:-1], rel_all[1:], 10), r_crp_lag)]:
+    d, z, p = jk(r, base); rho = np.corrcoef(r, base)[0, 1]
+    print(f"  {label:22}{d:+6.2f}  z {z:+5.2f}  p {p:.4f}  rho {rho:.2f}")

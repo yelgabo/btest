@@ -1,9 +1,8 @@
 # Paper review: "Online Quantitative Trading Strategies" (Lahanis, Liu, Zhou, NYU Stern)
 
-Draft 3, October 5, 2026. Supersedes drafts 1 (commit 4f1fa05) and 2 (unpublished), whose
-central claims were wrong; see "Corrections". Draft 2 was reviewed by three independent
-reviewers before this rewrite; their findings and what was done with each are listed under
-"Review record".
+Draft 4, October 5, 2026. Supersedes drafts 1 (commit 4f1fa05), 2 (unpublished) and 3 (commit
+f7d034c); see "Corrections". Draft 2 was reviewed by three independent reviewers and draft 3 by
+a fourth; their findings and what was done with each are listed under "Review record".
 
 Sources: `Glucksman_Lahanis.pdf` (20 pages, Glucksman Fellowship, May 2025); the authors' code
 and data, [nglahani/Online-Quantitative-Trading-Strategies](https://github.com/nglahani/Online-Quantitative-Trading-Strategies)
@@ -15,28 +14,30 @@ at commit `7c2e88d` (MIT license). Every number below comes from a script in
 
 1. **The paper's results reproduce exactly from the authors' published data and code.** Their
    repository contains the price data (93 NASDAQ-100 stocks, 1998-01-02 to 2009-12-31). Running
-   their functions gives CWMR 1590.38, PAMR 788.26, Anticor 36.89, FTRL 15.25, CRP 12.16,
-   buy-and-hold 9.17, matching Tables 3 and 4 to the reported decimals.
-2. **In that sample, mean reversion survives costs and delay in return terms, not in
-   risk-adjusted terms.** CWMR still compounds 43.6% a year at 10 bp per dollar traded and 45.6%
-   with a one-day trading delay, against 23.2% for an equal-weight portfolio rebalanced daily
-   (CRP). Its Sharpe ratio advantage over CRP is significant without frictions (p < 0.0001) but
-   not at 10 bp (p = 0.29) or with the delay (p = 0.11). The parameters were tuned on this same
-   sample, so it is in-sample evidence.
-3. **Out of sample (2016-2024) the effect is small or absent.** On 16 liquid equity ETFs, CWMR
-   beats CRP under every cost and timing tested but beats SPY only from a 2016 start and before
-   costs; with measured spreads and trade timing a live system can achieve it trails SPY. On
-   current NASDAQ-100 members it has a lower Sharpe ratio than CRP at every cost level,
-   including zero. None of the 2016-2024 differences against SPY or CRP is statistically
-   significant.
-4. **Four of the paper's reported strategies are not the algorithms they are named after.**
+   their functions gives CWMR 1590.3818, PAMR 788.2571, Anticor 36.8868, FTRL 15.2490, CRP
+   12.1584 and buy-and-hold 9.1742, matching Tables 3 and 4.
+2. **In that sample, mean reversion keeps much of its return after costs or a one-day delay;
+   its risk-adjusted edge is more fragile.** Against an equal-weight portfolio rebalanced daily
+   (CRP, 23.2% a year), CWMR compounds 43.6% a year at 10 bp per dollar traded and 45.6% with a
+   one-day delay, but its Sharpe ratio advantage is significant only without frictions
+   (p < 0.0001; p = 0.29 at 10 bp, p = 0.11 with the delay). PAMR's advantage survives the delay
+   (p = 0.0002) but not the delay plus 5 bp (p = 0.49). The parameters were selected on this
+   sample (see section 1), so this is in-sample evidence.
+3. **Out of sample (2016-2024) the effect is small and not statistically detectable.** On 16
+   liquid equity ETFs, CWMR beat SPY before costs from 3 of 8 start years (2016, 2018, 2020).
+   From the 2016 start it still led after measured spreads when trading at the close (15.7%
+   against 14.5%) but trailed when trading at 15:45 (13.8%). It beats CRP in most but not all
+   tested conditions (not at 5 bp, not at 15:45 timing plus 1 bp, not from a 2022 start). On current
+   NASDAQ-100 members, CWMR and PAMR have lower Sharpe ratios than CRP at every cost tested,
+   including zero. None of the tested 2016-2024 comparisons is statistically significant.
+4. **Five of the paper's reported strategies differ from the algorithms they are named after.**
    OLMAR and EG never change their target weights, so both are CRP (the paper's tables show
-   identical numbers). FTRL's edge over CRP comes from tickers padded with flat placeholder
-   prices before they list. CWMR and RMR are modified versions of the published methods.
+   identical numbers for all three). FTRL's edge over CRP disappears when the 32 tickers with
+   incomplete data are removed. CWMR and RMR are modified versions of the published methods.
 
 The paper discloses that it ignores trading costs and that 1998-2010 may not represent recent
-markets (section 6.4). Points 2 and 3 quantify those two disclosed limitations; they sit uneasily
-with the abstract's claim of performance "under realistic market conditions".
+markets (section 6.4). Points 2 and 3 quantify those two disclosed limitations, against the
+abstract's conclusion that these methods "provide superior risk-adjusted returns".
 
 ## Definitions used throughout
 
@@ -57,33 +58,45 @@ with the abstract's claim of performance "under realistic market conditions".
   convention, section 3.2), "no rf" (raw), or "T-bill" (excess over the 3-month T-bill rate,
   btest's convention).
 - **Paired test**: Jobson-Korkie test with Memmel's correction on daily returns of two
-  strategies over the same days; it accounts for their correlation (0.92-0.95 here).
+  strategies over the same days; it accounts for their correlation (0.71-0.95 in these tests).
 
 ## 1. The paper's own sample, 1998-2009 (`paper_data.py`)
 
-93 tickers, 3,019 days. Parameters are the paper's (Exhibit A, equal to the code defaults).
+93 tickers, 3,019 days. Parameters are the paper's Exhibit A values, which equal the code
+defaults for every algorithm in this section (they differ for RMR's eta, 20 against 30, and the
+nearest-neighbour count, 3 against 5, neither used here).
+
+How the parameters were chosen: the paper describes walk-forward validation (section 5.1.2). In
+the code, `tune_strategy(use_walk_forward=False)` makes it optional; the saved tuning results
+report averages over validation windows, consistent with walk-forward having been used, but all
+windows lie inside 1998-2009. The selected parameters were therefore chosen with this sample.
+The paper also reports Anticor's alpha as 2.5 (Exhibit A) while its tuning grid shows only 1.5
+and 2.0 (Table 2).
 
 CAGR (wealth multiple), Sharpe rf 5% / no rf:
 
-| Strategy | Method A | A + 1 bp | A + 5 bp | A + 10 bp | One-day delay |
-|---|---|---|---|---|---|
-| CRP | 23.2% (12.2x), 0.76 / 0.95 | 23.1% | 22.9% | 22.6% | 23.2% |
-| CWMR | 85.0% (1,590x), 1.75 / 1.88 | 80.4% (1,174x) | 63.0% (349x) | 43.6% (76x), 1.05 / 1.18 | 45.6% (90x), 1.13 / 1.28 |
-| PAMR | 74.5% (788x), 1.63 / 1.77 | 70.1% | 53.5% | 35.1% (37x), 0.90 / 1.04 | 51.9% (149x), 1.26 / 1.41 |
-| Anticor | 35.1% (37x), 1.02 / 1.19 | 31.8% | 19.0% | 4.8% (1.8x) | 30.0% (23x) |
-| FTRL | 25.5% (15.2x), 1.04 / 1.30 | 25.5% | 25.3% | 25.0% | 25.5% |
+| Strategy | Method A | A + 1 bp | A + 5 bp | A + 10 bp | One-day delay | Delay + 5 bp |
+|---|---|---|---|---|---|---|
+| CRP | 23.2% (12.2x), 0.76 / 0.95 | 23.1% | 22.9% | 22.6% | 23.2% | 22.9% |
+| CWMR | 85.0% (1,590x), 1.75 / 1.88 | 80.4% (1,174x) | 63.0% (349x) | 43.6% (76x), 1.05 / 1.18 | 45.6% (90x), 1.13 / 1.28 | 28.5% (20x), 0.76 / 0.91 |
+| PAMR | 74.5% (788x), 1.63 / 1.77 | 70.1% | 53.5% | 35.1% (37x), 0.90 / 1.04 | 51.9% (149x), 1.26 / 1.41 | 33.9% (33x), 0.89 / 1.03 |
+| Anticor | 35.1% (37x), 1.02 / 1.19 | 31.8% | 19.0% | 4.8% (1.8x) | 30.0% (23x) | |
+| FTRL | 25.5% (15.2x), 1.04 / 1.30 | 25.5% | 25.3% | 25.0% | 25.5% | |
 
-Paired Sharpe tests against CRP (annualized difference, no rf): CWMR method A +0.94 (z 4.25,
-p < 0.0001); CWMR + 10 bp +0.23 (p 0.29); CWMR one-day delay +0.33 (p 0.11); PAMR + 10 bp +0.09
-(p 0.52).
+Paired Sharpe tests against CRP (annualized difference, no rf, p):
+
+| | Method A | A + 10 bp | One-day delay | Delay + 5 bp | Delay + 10 bp |
+|---|---|---|---|---|---|
+| CWMR | +0.94 (p < 0.0001) | +0.23 (0.29) | +0.33 (0.11) | -0.04 (0.86) | |
+| PAMR | +0.82 (p < 0.0001) | +0.09 (0.52) | +0.46 (0.0002) | +0.09 (0.49) | -0.29 (0.02) |
 
 Robustness checks on the same data:
 
 - **Two suspected bad prints.** PCAR on 2000-02-16/17 (price ratio 0.536 then 1.943) and XRAY on
   2004-07-22/23 (0.468 then 2.087) are the only spike-and-reverse pairs beyond 0.6/1.6. Setting
   both to 1.0 lowers CWMR from 1,590x to 1,120x (79.7% a year) and PAMR from 788x to 626x.
-- **Tickers with data over almost the whole sample (61).** CWMR method A 85.9% a year; one-day
-  delay 30.8%; CRP 21.4%. FTRL falls to 17.2%, below CRP.
+- **Tickers with data over almost the whole sample (61 of 93).** CWMR method A 85.9% a year;
+  one-day delay 30.8%; CRP 21.4%. FTRL falls to 17.2%, below CRP.
 
 ## 2. Code findings (authors' repository, commit 7c2e88d)
 
@@ -98,20 +111,22 @@ Verified by reading the code and running it on the paper's data unless stated.
    the old as `(1 - smoothing) * old + smoothing * new`, and the paper's smoothing is 0.0
    (Exhibit A). The target changed on 0 of 3,018 days; the paper reports EG identical to CRP
    (12.1584, Sharpe 0.7552, max drawdown -45.19%).
-3. **FTRL's edge comes from placeholder prices.** Before a ticker lists, the code fills its
-   price ratios with 1.0 (a flat price). On all 93 tickers FTRL returns 25.5% against CRP's
-   23.2%; on the 61 tickers with near-complete data it returns 17.2% against 21.4%. Our code
-   audit found FTRL overweights placeholder cells; we did not trace the mechanism further.
+3. **FTRL's edge depends on the tickers with incomplete data.** On all 93 tickers FTRL returns
+   25.5% against CRP's 23.2%; on the 61 tickers with near-complete data it returns 17.2% against
+   21.4%. The 32 removed tickers include the 20 held at a flat placeholder price (ratio 1.0)
+   before they list; we have not isolated whether the placeholder cells themselves drive the
+   difference.
 4. **CWMR is a modified algorithm.** The docstring calls it "a simplified version of CWMR with
    an additional learning rate factor." The step size is a passive-aggressive closed form
    without Li et al.'s confidence term, the confidence parameter enters the covariance update
    directly, a learning-rate factor is added, and the mean-centering of the update is omitted.
 5. **RMR is modified.** It takes the L1-median of past price ratios divided by the last price
    ratio; Huang et al.'s RMR takes the L1-median of past prices divided by the current price.
+   (Read in the code; not run.)
 6. **Missing prices are forward-filled.** A ticker with no data on a day keeps its last price
-   (ratio 1.0). In the paper's data, 20 tickers have long runs of placeholder ratios before
-   listing, and five stop trading during the sample (APCC, BGEN, MEDI, NXTL, SEBL, all
-   acquisitions, so their last prices are close to deal prices).
+   (ratio 1.0). In the paper's data, 20 tickers have more than 20 placeholder days before
+   listing, and five stop trading during the sample (APCC, BGEN, MEDI, NXTL, SEBL, all acquired,
+   so their last prices are close to deal prices).
 7. **No look-ahead in the wealth calculation.** Weights for day t use price ratios through
    day t-1.
 
@@ -140,8 +155,10 @@ SPY: 14.5% a year, Sharpe 0.84 no rf, max drawdown -33.8%. CRP: 12.0%.
 | btest timing (see input note) | 16.3% | | | |
 | btest timing + 1 bp | 12.3% | | | |
 
-Break-even flat cost against SPY on CAGR: 0.74 bp per dollar traded (method A); 0.43 bp (btest
-timing). Measured spreads average 0.70 bp.
+Break-even flat cost against SPY on CAGR: 0.74 bp per dollar traded (method A); 0.43 bp in this
+script's emulation of btest timing. The btest engine itself still leads SPY at 0.43 bp (14.9%)
+and trails at 0.70 bp (13.8%), so its break-even lies between the two. Measured spreads average
+0.70 bp.
 
 Input note: CWMR's result depends on how the day's price ratio is defined. Using 15:14 prices
 for every day gives 14.7%; using closing prices for past days and the 15:14 price for the
@@ -155,11 +172,17 @@ what a one-day reversal effect predicts; we read the delay results as noise rath
 evidence about the mechanism.
 
 **btest engine** (`strategies/olps/cwmr.py`, a port matching the authors' `cwmr()` to within
-7e-9 per weight on the paper's data; full-history replay checked identical to a cached
-incremental update): CWMR
+7.1e-9 per weight on the paper's data, `port_vs_authors.py`; full-history replay checked
+identical to a cached incremental update, `cwmr_cache_check.py`; engine outputs in
+`outputs/engine_cwmr.out`): CWMR
 16.6% at 0 bp, 14.9% at 0.43 bp, 13.8% at 0.70 bp (Sharpe T-bill 0.77, 0.70, 0.65; SPY 14.5%,
 0.73). PAMR 8.9%, OLMAR (Li and Hoi's published form, our implementation) 6.9% and monthly CRP
 11.8% at 0.70 bp. Saved as btest runs 35-42 (each strategy at 0 and 0.7 bp, $20,000).
+
+Achievable timing matters for the SPY comparison: with 15:45 fills and measured spreads CWMR
+trails SPY (13.8% against 14.5%); with the one-day delay, tradable at the close with
+market-on-close orders, it led SPY before costs (16.2%). Closing-auction costs were not measured,
+so whether that lead survives is open.
 
 **Statistics.** Paired Sharpe tests (no rf): CWMR method A against SPY +0.07 (p 0.51), against
 CRP +0.17 (p 0.19); with measured spreads against SPY -0.01 (p 0.94), against CRP +0.10
@@ -183,9 +206,9 @@ on the start. Restarted each January, method A, no costs:
 From the 2016 start, CWMR's lead over SPY comes mostly from 2017 (+13.5 points), 2018 (+12.3)
 and 2020 (+10.7); it trailed in 2016, 2019, 2022 and 2023.
 
-**Measured spreads** (`spreads.py`): median half-spread over every SIP quote in the minute
-15:45:00-15:45:59 New York time, 5 sessions per year 2016-2024 (45 sessions, all measured for
-every ETF): SPY 0.17 bp, QQQ 0.26, IWM 0.30, DIA 0.29, EFA 0.73, EEM 1.20, XLK 0.50, XLF 1.68,
+**Measured spreads** (`spreads.py`): for each session, the median half-spread over every SIP
+quote in the minute 15:45:00-15:45:59 New York time; reported value is the median of 45 such
+sessions (5 per year 2016-2024, all measured for every ETF): SPY 0.17 bp, QQQ 0.26, IWM 0.30, DIA 0.29, EFA 0.73, EEM 1.20, XLK 0.50, XLF 1.68,
 XLV 0.50, XLE 0.74, XLI 0.64, XLY 0.41, XLP 0.80, XLU 0.81, XLB 0.82, XLRE 1.35; equal-weight
 average 0.70 bp. Excludes market impact and broker price improvement. These are costs for
 trading at 15:45; method A and the one-day delay trade at the close, where a closing-auction
@@ -219,13 +242,13 @@ Supported:
 
 - The paper's numbers are correctly computed from its data and code.
 - In-sample (1998-2009), CWMR's and PAMR's returns exceed CRP's after 10 bp costs or a one-day
-  delay, but their risk-adjusted advantage is not statistically significant once either friction
-  is applied.
-- OLMAR and EG as implemented are CRP; FTRL's reported edge depends on placeholder prices; CWMR
-  and RMR differ from the published algorithms.
-- Out of sample (2016-2024) on liquid ETFs, CWMR does not beat SPY after measured costs at
-  achievable timing, and on current NASDAQ-100 members CWMR and PAMR show no Sharpe advantage
-  over CRP; none of these out-of-sample differences is statistically significant.
+  delay. CWMR's risk-adjusted advantage is not significant once either friction is applied;
+  PAMR's survives the delay (p 0.0002) but not the delay plus 5 bp.
+- OLMAR and EG as implemented are CRP; FTRL's reported edge depends on the tickers with
+  incomplete data; CWMR and RMR differ from the published algorithms.
+- Out of sample (2016-2024) on liquid ETFs, CWMR trails SPY after measured spreads with 15:45
+  fills; on current NASDAQ-100 members CWMR and PAMR have lower Sharpe ratios than CRP. None of
+  the tested out-of-sample comparisons is statistically significant.
 
 Not supported by this work:
 
@@ -236,10 +259,11 @@ Not supported by this work:
 - Anything about the roughly 25 algorithms not tested here, including histogram pattern matching
   (about 600x in the paper).
 - Whether the 1998-2009 results contain after-hours prints beyond the two bad prints found.
+- Whether the one-day-delay lead over SPY on ETFs survives closing-auction costs.
 
 ## Applications for btest
 
-1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.4x turnover, 11.8% on the ETFs.
+1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
    Use it beside SPY and 60/40 for multi-asset strategies.
 2. **Per-symbol costs (plan gap G8).** Results here turn on tenths of a basis point. The measured
    spreads above are a starting table.
@@ -256,7 +280,7 @@ Not supported by this work:
   realistic testing". The data is in the authors' repository, the results reproduce, and in the
   paper's own sample they survive costs and delay in return terms.
 - Draft 1's btest CWMR rebuilt its state from the last 252 sessions; in a script emulation that
-  cut CWMR from 15.8% to 8.6% (2016-2024, btest timing, no costs). The port now replays the full
+  cut CWMR from 15.8% to 8.6% (2017-2024, btest timing, no costs). The port now replays the full
   history.
 - Drafts 1-2 assumed or measured spreads with a script that sampled only the first seconds of the
   minute and skipped rate-limited days; the remeasured average is 0.70 bp.
@@ -295,3 +319,10 @@ checked reproduced. Dispositions:
 | Delay raising PAMR/Anticor returns undermines the "not an artifact" inference | Confirmed, inference withdrawn |
 | Published scripts had placeholder paths | Confirmed, fixed and rerun from the repository |
 | Sample ends 2009, not 2010 | Confirmed, corrected |
+| Draft 3: PAMR's delay advantage untested, summary claimed no friction survives | Confirmed (p 0.0002), tests and summary corrected |
+| Draft 3: "beats CRP under every condition, SPY only from 2016" contradicted by tables | Confirmed, rewritten from the tables |
+| Draft 3: "achievable timing" ignored the market-on-close delay row | Confirmed, claim scoped to 15:45 fills |
+| Draft 3: walk-forward claim not engaged; Anticor alpha inconsistency | Confirmed, section 1 note added |
+| Draft 3: FTRL attribution to placeholders not isolated | Confirmed, reworded |
+| Draft 3: several numbers printed by no script | Confirmed, scripts now print them (outputs/) |
+| Draft 3: correlation range, Exhibit A vs defaults, abstract quote, "four" vs five, 2017 span, 0.3x turnover, spread wording, "none tested" | Confirmed, corrected |
