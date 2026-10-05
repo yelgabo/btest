@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>btest strategy gaps</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0b0b0d; color: #f0ece3;
+         font: 15px/1.6 "Avenir Next", Avenir, system-ui, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 32px 20px 64px; min-width: 0; }
+  h1 { font-size: 28px; font-weight: 600; margin: 0 0 6px; }
+  .lede { color: #c0bcb6; max-width: 72ch; margin: 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>btest: what portfolio strategies need</h1>
+<p class="lede">Existing components have solid outlines. Dashed gold outlines are additions from
+the strategy research, tagged with their gap number (G1 to G11). October 4, 2026.</p>
+<figure id="sg-figure">
+  <style>
+    #sg-figure { margin: 24px 0; min-width: 0; }
+    #sg-figure .diagram-scroll { overflow-x: auto; background: #101013; border-radius: 10px; }
+    #sg-figure svg { display: block; width: 100%; min-width: 1200px; height: auto; }
+    #sg-figure text { font-family: "Avenir Next", Avenir, system-ui, sans-serif; fill: #f0ece3; }
+    #sg-figure .title { font-size: 21px; font-weight: 600; }
+    #sg-figure .detail { fill: #c0bcb6; font-size: 17px; }
+    #sg-figure .new-detail { fill: #dec18a; font-size: 17px; }
+    #sg-figure .edge-label { fill: #c0bcb6; font-size: 16px; }
+    #sg-figure .lane { fill: #8a857d; font-size: 15px; letter-spacing: 0.08em; }
+    #sg-figure .edge { fill: none; stroke: #dec18a; stroke-width: 1.8; marker-end: url(#sg-arrow); }
+    #sg-figure .svc { fill: #1b1b20; stroke: #686158; stroke-width: 1.4; }
+    #sg-figure .new { fill: #1b1b20; stroke: #dec18a; stroke-width: 1.6; stroke-dasharray: 8 5; }
+    #sg-figure .store { fill: #1b1b20; stroke: #a38e68; stroke-width: 1.5; }
+    #sg-figure .cap { fill: #25252a; stroke: #a38e68; stroke-width: 1.5; }
+    #sg-figure .newstore { fill: #1b1b20; stroke: #dec18a; stroke-width: 1.6; stroke-dasharray: 8 5; }
+    #sg-figure .newcap { fill: #25252a; stroke: #dec18a; stroke-width: 1.6; stroke-dasharray: 8 5; }
+    #sg-figure figcaption { margin-top: 10px; font: 14px/1.6 system-ui, sans-serif; color: #c0bcb6; }
+  </style>
+  <div class="diagram-scroll" tabindex="0" role="region"
+       aria-label="btest strategy gaps diagram, scroll horizontally on small screens">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1000" role="img"
+         aria-labelledby="sg-title sg-desc">
+      <title id="sg-title">Components btest adds to backtest portfolio strategies</title>
+      <desc id="sg-desc">
+        Data lane: a universe list (new, G1) tells ingest which symbols to fetch from Alpaca;
+        ingest writes minute bars to Parquet and corporate actions and rates to Postgres. A new
+        daily-bar store with index membership (G11) serves stock momentum. Engine lane: the
+        event engine loads bars and gains a rebalance hook, batch rebalancing, fractional
+        shares, cash yield, order types, a margin model and a spread table. The fast path gains
+        a portfolio kernel. Research lane: the engine saves runs to Postgres; the fast path feeds sweeps, whose
+        trials pass through new walk-forward and deflated Sharpe checks before being saved.
+      </desc>
+      <defs>
+        <marker id="sg-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10Z" fill="#dec18a"/>
+        </marker>
+      </defs>
+      <rect width="1800" height="1000" fill="#101013"/>
+
+      <text class="lane" x="40" y="52">DATA</text>
+      <text class="lane" x="40" y="392">ENGINE</text>
+      <text class="lane" x="40" y="802">RESEARCH</text>
+
+      <!-- Data lane -->
+      <rect class="new" x="40" y="80" width="260" height="120" rx="10"/>
+      <text class="title" x="170" y="120" text-anchor="middle">Universe list</text>
+      <text class="new-detail" x="170" y="150" text-anchor="middle">G1: ~25 ETFs in btest.toml</text>
+      <text class="new-detail" x="170" y="176" text-anchor="middle">join dates per symbol</text>
+
+      <rect class="svc" x="400" y="80" width="250" height="120" rx="10"/>
+      <text class="title" x="525" y="120" text-anchor="middle">Alpaca data API</text>
+      <text class="detail" x="525" y="150" text-anchor="middle">SIP minute bars, 2016+</text>
+      <text class="detail" x="525" y="176" text-anchor="middle">splits, dividends</text>
+
+      <rect class="svc" x="750" y="80" width="250" height="120" rx="10"/>
+      <text class="title" x="875" y="120" text-anchor="middle">btest ingest</text>
+      <text class="detail" x="875" y="150" text-anchor="middle">nightly on the worker</text>
+      <text class="detail" x="875" y="176" text-anchor="middle">plus FRED T-bill rates</text>
+
+      <path class="store" d="M1100 96A120 16 0 0 1 1340 96V200A120 16 0 0 1 1100 200Z"/>
+      <ellipse class="cap" cx="1220" cy="96" rx="120" ry="16"/>
+      <text class="title" x="1220" y="140" text-anchor="middle">Parquet bars</text>
+      <text class="detail" x="1220" y="168" text-anchor="middle">1m, raw, /data volume</text>
+      <text class="detail" x="1220" y="192" text-anchor="middle">124 MB today</text>
+
+      <path class="store" d="M1420 96A140 16 0 0 1 1700 96V200A140 16 0 0 1 1420 200Z"/>
+      <ellipse class="cap" cx="1560" cy="96" rx="140" ry="16"/>
+      <text class="title" x="1560" y="140" text-anchor="middle">Postgres market</text>
+      <text class="detail" x="1560" y="168" text-anchor="middle">splits, dividends,</text>
+      <text class="detail" x="1560" y="192" text-anchor="middle">calendar, T-bill rates</text>
+
+      <path class="newstore" d="M1420 262A140 16 0 0 1 1700 262V350A140 16 0 0 1 1420 350Z"/>
+      <ellipse class="newcap" cx="1560" cy="262" rx="140" ry="16"/>
+      <text class="title" x="1560" y="302" text-anchor="middle">Daily stock store</text>
+      <text class="new-detail" x="1560" y="330" text-anchor="middle">G11: delisted + membership</text>
+
+      <path class="edge" d="M300 140H400"/>
+      <text class="edge-label" x="350" y="126" text-anchor="middle">symbols</text>
+      <path class="edge" d="M750 140H650"/>
+      <text class="edge-label" x="700" y="126" text-anchor="middle">fetch</text>
+      <path class="edge" d="M1000 140H1100"/>
+      <text class="edge-label" x="1050" y="126" text-anchor="middle">write</text>
+      <path class="edge" d="M875 80V40H1560V80"/>
+      <text class="edge-label" x="1220" y="32" text-anchor="middle">write actions, calendar, rates</text>
+
+      <!-- Engine lane -->
+      <rect class="svc" x="40" y="420" width="1180" height="300" rx="12"/>
+      <text class="title" x="70" y="458">Event engine (engine.py)</text>
+      <text class="detail" x="70" y="486">Today: multi-symbol event loop, market fills at next open, whole shares, cash cap</text>
+
+      <rect class="new" x="70" y="510" width="270" height="88" rx="9"/>
+      <text class="title" x="205" y="544" text-anchor="middle">on_bars hook</text>
+      <text class="new-detail" x="205" y="572" text-anchor="middle">G2: all symbols at once</text>
+
+      <rect class="new" x="360" y="510" width="270" height="88" rx="9"/>
+      <text class="title" x="495" y="544" text-anchor="middle">ctx.rebalance</text>
+      <text class="new-detail" x="495" y="572" text-anchor="middle">G3: sells fill before buys</text>
+
+      <rect class="new" x="650" y="510" width="260" height="88" rx="9"/>
+      <text class="title" x="780" y="544" text-anchor="middle">Fractional shares</text>
+      <text class="new-detail" x="780" y="572" text-anchor="middle">G4: Config flag</text>
+
+      <rect class="new" x="930" y="510" width="260" height="88" rx="9"/>
+      <text class="title" x="1060" y="544" text-anchor="middle">Cash yield</text>
+      <text class="new-detail" x="1060" y="572" text-anchor="middle">G5: T-bill on idle cash</text>
+
+      <rect class="new" x="70" y="614" width="370" height="88" rx="9"/>
+      <text class="title" x="255" y="648" text-anchor="middle">Order types</text>
+      <text class="new-detail" x="255" y="676" text-anchor="middle">G6: MOC, MOO, stop, limit, bracket</text>
+
+      <rect class="new" x="460" y="614" width="350" height="88" rx="9"/>
+      <text class="title" x="635" y="648" text-anchor="middle">Margin and shorts</text>
+      <text class="new-detail" x="635" y="676" text-anchor="middle">G7: Reg T, borrow fee</text>
+
+      <rect class="new" x="830" y="614" width="360" height="88" rx="9"/>
+      <text class="title" x="1010" y="648" text-anchor="middle">Spread table</text>
+      <text class="new-detail" x="1010" y="676" text-anchor="middle">G8: per-symbol cost, FINRA TAF</text>
+
+      <rect class="svc" x="1320" y="420" width="380" height="300" rx="12"/>
+      <text class="title" x="1350" y="458">Fast path (fast.py)</text>
+      <text class="detail" x="1350" y="486">Today: numba kernel, one symbol,</text>
+      <text class="detail" x="1350" y="510">signals() weight series</text>
+      <rect class="new" x="1350" y="560" width="320" height="110" rx="9"/>
+      <text class="title" x="1510" y="598" text-anchor="middle">Portfolio kernel</text>
+      <text class="new-detail" x="1510" y="626" text-anchor="middle">G9: bars x symbols weights</text>
+      <text class="new-detail" x="1510" y="652" text-anchor="middle">same rules as G3</text>
+
+      <path class="edge" d="M1220 216V420"/>
+      <text class="edge-label" x="1232" y="320">load bars</text>
+      <path class="edge" d="M1222 615H1318" marker-start="url(#sg-arrow)"/>
+      <text class="edge-label" x="1270" y="600" text-anchor="middle">parity</text>
+
+      <!-- Research lane -->
+      <path class="store" d="M40 846A150 16 0 0 1 340 846V950A150 16 0 0 1 40 950Z"/>
+      <ellipse class="cap" cx="190" cy="846" rx="150" ry="16"/>
+      <text class="title" x="190" y="890" text-anchor="middle">Postgres runs</text>
+      <text class="detail" x="190" y="918" text-anchor="middle">fills, equity, metrics</text>
+
+      <rect class="new" x="440" y="830" width="320" height="120" rx="10"/>
+      <text class="title" x="600" y="870" text-anchor="middle">Deflated Sharpe</text>
+      <text class="new-detail" x="600" y="900" text-anchor="middle">G10: adjust best result</text>
+      <text class="new-detail" x="600" y="926" text-anchor="middle">for settings tried</text>
+
+      <rect class="new" x="860" y="830" width="320" height="120" rx="10"/>
+      <text class="title" x="1020" y="870" text-anchor="middle">Walk-forward</text>
+      <text class="new-detail" x="1020" y="900" text-anchor="middle">G10: rolling train/test</text>
+      <text class="new-detail" x="1020" y="926" text-anchor="middle">stitched test equity</text>
+
+      <rect class="svc" x="1400" y="830" width="300" height="120" rx="10"/>
+      <text class="title" x="1550" y="870" text-anchor="middle">Sweeps</text>
+      <text class="detail" x="1550" y="900" text-anchor="middle">parameter grids, stop</text>
+      <text class="detail" x="1550" y="926" text-anchor="middle">at 2025-01-01 holdout</text>
+
+      <path class="edge" d="M190 720V830"/>
+      <text class="edge-label" x="202" y="790">save run</text>
+      <path class="edge" d="M1550 720V830"/>
+      <text class="edge-label" x="1562" y="790">trial results</text>
+      <path class="edge" d="M1400 890H1180"/>
+      <text class="edge-label" x="1290" y="876" text-anchor="middle">all trials</text>
+      <path class="edge" d="M860 890H760"/>
+      <text class="edge-label" x="810" y="876" text-anchor="middle">picks</text>
+      <path class="edge" d="M440 890H340"/>
+      <text class="edge-label" x="390" y="876" text-anchor="middle">save</text>
+    </svg>
+  </div>
+  <figcaption>
+    Solid outlines exist today; dashed gold outlines are proposed. The daily stock store (G11)
+    is drawn apart because only stock momentum needs it and it depends on a data-source
+    decision. Cylinders are stores.
+  </figcaption>
+</figure>
+</main>
+</body>
+</html>
