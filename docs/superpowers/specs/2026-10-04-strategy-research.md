@@ -51,20 +51,27 @@ can test them. "Status" says whether btest already has a version.
 | 5 | Inverse-volatility / risk parity with vol target | Weight a stock/bond/gold ETF set by inverse 60-day vol, scale to a target portfolio vol | Monthly | [Moreira and Muir 2017](https://doi.org/10.1111/jofi.12513) | Single-asset (`risk/vol_target`) |
 | 6 | Stock cross-sectional momentum | Hold the top 20 large caps by 12-1 month return | Monthly | [Jegadeesh and Titman 1993](https://doi.org/10.1111/j.1540-6261.1993.tb04702.x) | None |
 | 7 | Turn of month | Hold SPY from the last trading day of the month through the third trading day of the next, cash otherwise | Monthly | [McConnell and Xu 2008](https://doi.org/10.2469/faj.v64.n2.11) | None |
-| 8 | Overnight hold | Buy SPY or QQQ at the close, sell at the next open | Daily | [Lou, Polk, Skouras 2019](https://doi.org/10.1016/j.jfineco.2019.03.011) | None |
-| 9 | Opening range breakout | Trade QQQ in the direction of the first 5-minute bar, stop at its other side, exit at 10R or the close | Intraday | [Zarattini and Aziz 2023](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4416622) | Long-only 30-minute version (`intraday/opening_range`), no stop |
-| 10 | ETF pairs | Trade the spread of a cointegrated ETF pair (e.g. two overlapping sector ETFs), long one, short the other | Daily | [Gatev, Goetzmann, Rouwenhorst 2006](https://doi.org/10.1093/rfs/hhj020) | None |
+| 8 | ETF pairs | Trade the spread of a cointegrated ETF pair (e.g. two overlapping sector ETFs), long one, short the other | Daily | [Gatev, Goetzmann, Rouwenhorst 2006](https://doi.org/10.1093/rfs/hhj020) | None |
 
-Notes on the weaker entries:
+#8 pairs needs shorting, which brings borrow fees and margin into the model.
 
-- **#8 overnight hold** trades every day, so a 1 bp per-side spread costs about 5% a year. The
-  effect is real in the data, but the net result depends almost entirely on the cost model.
-- **#9 opening range breakout** reports results with commission but no spread or slippage and
-  no out-of-sample period. An independent replication found break-even at about 2.2 cents per
-  share of slippage and most of the profit concentrated in 2022
-  ([replication](https://github.com/giovannibrusco/zarattini-2023-orb-qqq)). Worth testing
-  because btest has minute bars, not worth trading on the paper's numbers.
-- **#10 pairs** needs shorting, which brings borrow fees and margin into the model.
+### Not candidates: test only to rule out
+
+These two come up often and have published results, but neither belongs in the ranked list.
+btest has the minute data to check them cheaply once G6 lands, which is the only reason they
+stay in this doc.
+
+- **Overnight hold** (buy SPY or QQQ at the close, sell at the next open). Studies find most
+  of the US equity premium has arrived overnight rather than during the session
+  ([Lou, Polk, Skouras 2019](https://doi.org/10.1016/j.jfineco.2019.03.011)). Trading it
+  means 252 round trips a year, every gain taxed short-term, and full exposure to overnight
+  gaps while missing the intraday session. Buy-and-hold already collects the overnight return
+  without any of that. Its only use here is as a check on the cost model.
+- **Opening range breakout** on QQQ
+  ([Zarattini and Aziz 2023](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4416622)).
+  The paper charges no spread or slippage and has no out-of-sample period. An independent
+  replication found break-even at about 2.2 cents per share of slippage and most of the profit
+  in 2022 ([replication](https://github.com/giovannibrusco/zarattini-2023-orb-qqq)).
 
 Left out on purpose:
 
@@ -95,7 +102,7 @@ Left out on purpose:
 
 Each gap lists the strategies it blocks.
 
-### G1. ETF universe (blocks 1, 2, 3, 4, 5, 7, 10)
+### G1. ETF universe (blocks 1, 2, 3, 4, 5, 7, 8)
 
 Add the ETFs to `btest.toml` and ingest them. A working set of about 25:
 
@@ -106,7 +113,7 @@ Add the ETFs to `btest.toml` and ingest them. A working set of about 25:
 symbol joining mid-backtest. The three current symbols take 124 MB of Parquet, so 25 ETFs need about
 1 GB on the worker's `/data` volume.
 
-### G2. Portfolio rebalance hook (blocks 1, 2, 3, 5, 6, 10)
+### G2. Portfolio rebalance hook (blocks 1, 2, 3, 5, 6, 8)
 
 `Engine.run` walks events sorted by `(ts, symbol)` and calls `on_bar` once per symbol. When
 `on_bar` fires for the first symbol at a timestamp, the other symbols' bars at that timestamp
@@ -133,7 +140,7 @@ against SPY. Credit idle cash daily at the T-bill rate already in `market.rate` 
 since Alpaca's brokerage cash yield depends on the account). Also let a run choose its benchmark:
 a 60/40 SPY/AGG mix is the fair comparison for GTAA, not SPY alone.
 
-### G6. Order types (blocks 7, 8, 9)
+### G6. Order types (improves 7; needed for the overnight and ORB checks)
 
 - **Market-on-close and market-on-open.** Overnight hold and turn of month trade at the close.
   With 1D bars the next fill is tomorrow's open, which is a different strategy.
@@ -142,14 +149,14 @@ a 60/40 SPY/AGG mix is the fair comparison for GTAA, not SPY alone.
   minute data makes this testable for 5m strategies.
 - **Brackets** (entry plus stop plus target), which ORB needs.
 
-### G7. Short selling and margin (blocks 9 short side, 10)
+### G7. Short selling and margin (blocks 8)
 
 Model Reg T buying power (50% initial, 25-30% maintenance), a borrow fee as an annual rate on
 short market value (easy-to-borrow ETFs run well under 1%), and reject or liquidate on a margin
 breach. Short dividends already debit cash correctly because `_corporate_actions` multiplies by
 a negative position.
 
-### G8. Spread cost per symbol (improves 4, 8, 9)
+### G8. Spread cost per symbol (improves 4; needed for the overnight and ORB checks)
 
 Replace the single `slippage_bps` with a per-symbol half-spread table plus a fixed slippage
 term, and add the FINRA TAF on sales. Sweep the cost to find each strategy's break-even, the
@@ -190,17 +197,16 @@ strategy, so it goes last.
 | Phase | Gaps | Unlocks | Size |
 |---|---|---|---|
 | A | G1, G2, G3, G4, G5 | 1, 2, 3, 4 (basket), 5, 7 (at next open) | Medium |
-| B | G6, G8 | 7 (at close), 8, 9 (long side) | Medium |
-| C | G7 | 9 (both sides), 10 | Medium |
+| B | G6, G8 | 7 (at close); overnight and ORB checks | Medium |
+| C | G7 | 8 | Medium |
 | D | G9, G10 | Fast multi-asset sweeps, walk-forward, deflated Sharpe | Medium |
 | E | G11 | 6 | Large; needs a data-source decision and possibly a subscription |
 
-After phase A, btest can test seven of the ten strategies. Phase D can run in parallel with B
+After phase A, btest can test six of the eight candidates (all but stock momentum and pairs). Phase D can run in parallel with B
 and C once G2 and G3 settle the portfolio semantics, since the fast path must copy them.
 
 ## Decisions for the user
 
 - Whether to pay for a survivorship-free stock dataset (phase E), or skip stock momentum.
-- Whether the live account will be margin or cash. A cash account rules out shorts (10, half of
-  9) and adds settlement delays the engine would need to model.
+- Whether the live account will be margin or cash. A cash account rules out shorts (#8) and adds settlement delays the engine would need to model.
 - Whether options are in scope at all. They are excluded above.
