@@ -531,7 +531,8 @@ class OnlineStrategy(Strategy):
 
     bars = "monthly" feeds the algorithm month-over-month price ratios (closes on each month's
     last session, then today's price) instead of daily ones; pair it with
-    rebalance = "month_end"."""
+    rebalance = "month_end". bars = "weekly" does the same per ISO week; pair it with
+    rebalance = "weekly"."""
 
     bars = "daily"
 
@@ -541,13 +542,15 @@ class OnlineStrategy(Strategy):
     def _closes(self, data) -> dict[str, np.ndarray]:
         if self.bars == "daily":
             return {s: data.history(s, "close") for s in self.universe}
-        if self.bars != "monthly":
-            raise ValueError('bars must be "daily" or "monthly"')
+        period = {"monthly": lambda d: (d.year, d.month),
+                  "weekly": lambda d: d.isocalendar()[:2]}.get(self.bars)
+        if period is None:
+            raise ValueError('bars must be "daily", "weekly" or "monthly"')
         frame = data.frame("close")
-        months = [d.year * 12 + d.month for d in frame["date"].to_list()]
-        # The last session of each completed month, then today.
-        keep = [i for i in range(len(months) - 1) if months[i + 1] != months[i]]
-        keep.append(len(months) - 1)
+        keys = [period(d) for d in frame["date"].to_list()]
+        # The last session of each completed period, then today.
+        keep = [i for i in range(len(keys) - 1) if keys[i + 1] != keys[i]]
+        keep.append(len(keys) - 1)
         rows = frame[keep]
         return {s: rows[s].drop_nulls().to_numpy() for s in self.universe}
 

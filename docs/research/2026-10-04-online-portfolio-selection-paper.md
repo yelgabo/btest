@@ -320,6 +320,26 @@ Paired Sharpe test against SPY: -0.08 (no rf), p 0.77. It beat SPY in 8 of 21 mo
 16x a year. Out of sample, monthly CWMR matched SPY's return with slightly more risk; the
 2016-2024 lead (18.3% against 13.8%) did not carry over.
 
+## Weekly trading instead of monthly, 2016-2024 (`weekly.py`)
+
+Run after the monthly holdout failed. Same 16 ETFs, btest timing, 0.7 bp, SPY 13.8% (Sharpe
+0.73). A learns from daily prices and trades on each week's last session; B learns from weekly
+bars (each ISO week's last close) and trades on the same day. Full table in
+`outputs/weekly.out`.
+
+| CWMR (paper) | CAGR | Sharpe (T-bill) | Turnover | Paired Sharpe vs SPY, p |
+|---|---|---|---|---|
+| Daily, as published | 13.8% | 0.65 | 349x | |
+| A: trade weekly | 14.3% | 0.68 | 78x | -0.07, 0.49 |
+| B: weekly bars | 17.6% | 0.81 | 73x | +0.06, 0.68 |
+| Monthly, for reference | 18.3% | 0.87 | 18x | +0.12, 0.27 |
+
+B's lead depends on where the weeks end. With 5-session bars at each of the 5 possible offsets,
+B returns 9.4% to 13.9% (Sharpe 0.46 to 0.65), and none beats SPY on CAGR and Sharpe. A beats
+SPY on both at 1 of 5 offsets. Monthly A beat SPY at 18 of 21 offsets. Weekly trading quadruples
+turnover against monthly and does not hold up in-sample, so it was not run on the holdout,
+which the monthly test has already used.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
