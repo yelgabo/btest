@@ -233,20 +233,29 @@ as a sanity check for #5 before any of this is built.
 
 ### Data sources for G11-G14
 
-| Source | Covers | Cost | Notes |
-|---|---|---|---|
-| [Sharadar bundle](https://data.nasdaq.com/databases/SFA) (Nasdaq Data Link, or via [QuantRocket](https://www.quantrocket.com/pricing/data/sharadar/)) | G11, G12, G13 (insiders, 8-K events, S&P 500 constituents) | Not public; shown after login | Prices from 1998, fundamentals from 1990, about 9,000 delisted companies |
-| [Norgate Data Platinum](https://norgatedata.com/stockmarketpackages.php) | G11 (prices, delisted, historical index constituents) | $630 a year | Prices and index membership only; no earnings or insider data |
-| Alpaca (already in btest) | G11 from 2016: prices including delisted companies | Free with the existing account | Asset list omits dead tickers; needs an external membership list |
-| SEC EDGAR (free) | G12 ([Financial Statement Data Sets](https://www.sec.gov/data/financial-statements/aqfs.pdf), from 2009), G13 (Form 4, 8-K) | Free | No prices; a lot of parsing work |
-| [Massive](https://massive.com/pricing) (formerly Polygon) | G14 (options since 2014); stocks plans $29-199 a month | Options price not shown publicly | Whether its stock history includes delisted tickers is unverified |
-| ORATS, Cboe DataShop | G14 | Paid | Standard options-research sources |
+Free sources cover everything except options before 2024. Each was queried on 2026-10-04.
 
-For 2016 onward, G11 needs no purchase: Alpaca supplies the prices, delisted companies
-included, and a free constituent list supplies the universe. A paid source earns its cost in
-two cases: history before 2016 (to include the 2000-2002 and 2008 bear markets), and cleaned
-fundamentals and events (G12, G13) without parsing EDGAR. Sharadar covers both in one purchase,
-which makes it the first thing to price if either matters.
+| Need | Free source | What it gives | Limits |
+|---|---|---|---|
+| Stock prices incl. delisted (G11) | Alpaca, already in btest | Daily and minute bars from 2016 to each company's last day | Asset list omits dead tickers; nothing before 2016 |
+| Index membership (G11) | [fja05680/sp500](https://github.com/fja05680/sp500) | S&P 500 members by date since 1996 | Community-maintained; S&P 500 only |
+| Fundamentals (G12) | [SEC companyfacts API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces) (`data.sec.gov/api/xbrl/companyfacts/CIK##########.json`) | Every reported financial line per company, each tagged with its filing date, so point-in-time works; delisted companies included | XBRL from 2009; tag names vary between companies and need mapping |
+| Earnings dates (G13) | SEC submissions API (`data.sec.gov/submissions/CIK##########.json`) | 8-K filings with item 2.02 (earnings release) and their dates | Reported earnings come from companyfacts; no analyst consensus |
+| Insider trades (G13) | [SEC insider transactions data sets](https://www.sec.gov/data-research/sec-markets-data/insider-transactions-data-sets) | Forms 3, 4 and 5 as quarterly tables from 2006 | Needs filtering to open-market purchases (code P) |
+| FOMC dates (G13) | [Federal Reserve calendar](https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm) | Meeting dates | Typed in once a year |
+| Options (G14) | Alpaca options bars, already in btest's account | Daily and minute trade bars per contract from February 2024 | Trade prices, not bid/ask; under a year before the holdout |
+| Sanity checks | [Ken French data library](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html) | Monthly returns of momentum, value and profitability factors back to the 1920s | Factor returns, not tradable portfolios; useful to check a btest result's direction |
+
+SEC requests need a User-Agent header with a contact address and must stay under 10 requests a
+second.
+
+Paid sources only buy time or older history:
+
+| Source | Adds over the free set | Cost |
+|---|---|---|
+| [Sharadar bundle](https://data.nasdaq.com/databases/SFA) | Cleaned fundamentals, insiders and events; prices from 1998 | Shown after login |
+| [Norgate Data Platinum](https://norgatedata.com/stockmarketpackages.php) | Prices and index membership from 1990, delisted included | $630 a year |
+| [Massive](https://massive.com/pricing), ORATS, Cboe DataShop | Options history before 2024 (Massive from 2014) | Paid; options prices not public |
 
 ## Order of work
 
@@ -264,9 +273,8 @@ purchase; fundamentals, events and pre-2016 history are where a purchase comes i
 
 ## Decisions for the user
 
-- Whether 2016 onward is enough history for the stock strategies. If yes, stock momentum
-  runs on Alpaca plus a free membership list, and fundamentals can come from EDGAR. If not,
-  price the Sharadar bundle (history from 1998, plus fundamentals and events).
+- Whether 2016 onward is enough history for the stock strategies. Everything for 2016 onward
+  is free; a paid source is only needed for older history or to skip the EDGAR parsing work.
 - Whether options (#5) are worth a paid options dataset and the largest engine change.
 - Whether the live account will be margin or cash. A cash account still allows #5
   (cash-secured puts) but rules out shorting.
