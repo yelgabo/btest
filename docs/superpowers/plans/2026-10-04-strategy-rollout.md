@@ -19,7 +19,7 @@ files throughout.
 | 6 | SEC financials: companyfacts loader with filing times, concept map and coverage check, filing watcher and nightly index reconcile | G12, L2 | Multi-factor (#3) backtests; the watcher picks up a real 10-Q within 10 minutes |
 | 7 | Event data: earnings filings, Form 4 parser checked against SEC's quarterly data sets, FOMC dates; per-symbol spread costs | G13, G8 | #4 (10-Q version), #6 and #9 (FOMC) backtest with realistic small-cap costs |
 | 8 | Portfolio fast path, walk-forward, deflated Sharpe | G9, G10 | Sweeps over #1-#3 run on the fast path; each sweep reports walk-forward and deflated Sharpe |
-| 9 | Options, only if chosen | G14 | Put writing (#5) backtests on Alpaca options data from 2024 |
+| 9 | Options data and engine (in scope) | G14 | Put writing (#5) backtests on Alpaca options data from 2024 |
 
 Step 8 can start once step 1 fixes the portfolio rules, and run alongside steps 3-7. Any
 strategy that passes its holdout check can move to paper trading from step 4 on; the holdout
