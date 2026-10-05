@@ -291,6 +291,24 @@ SPY over the same window: 14.5%, Sharpe 0.73. Most follow-the-winner and meta st
 close to equal weights on these ETFs (turnover near 1x a year), so they track CRP. None of these
 runs beats SPY after costs.
 
+## Holdout test of monthly CWMR (pre-registered)
+
+Written and committed before running. Hypothesis from the 2016-2024 study
+(`outputs/monthly_robustness.out`): the paper's CWMR, learning from daily prices but trading
+only at month end, beats SPY after realistic costs.
+
+- Strategy: lab `olps/cwmr_monthly` v1, unchanged (epsilon 0.89, theta 0.92, eta 0.93; 16 ETFs;
+  decide 15:30, fill 15:45 on the last session of each month).
+- Window: 2025-01-01 to the latest data (sessions through 2026-10-02). btest's holdout; no run
+  of any strategy has used it.
+- Settings: $20,000, 0.7 bp per dollar traded, fractional shares, idle cash at the T-bill rate,
+  benchmark SPY.
+- Pass: CAGR and Sharpe ratio both above SPY's over the same window. Also reported: the paired
+  Sharpe test against SPY (not expected to be significant over 21 months).
+- Run once. Whatever the outcome, the strategy is not modified and rerun on this window.
+
+Result: pending.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
