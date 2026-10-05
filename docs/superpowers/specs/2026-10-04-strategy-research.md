@@ -193,6 +193,14 @@ sweeps over multi-asset strategies fall back to the event engine (slower, still 
 
 Every stock strategy needs price history for companies that were later delisted or acquired,
 plus point-in-time index membership. Testing on today's S&P 500 members inflates returns.
+
+**Alpaca already has the delisted prices from 2016.** Checked on 2026-10-04: daily bars for
+Twitter, Activision, SVB, First Republic, Bed Bath & Beyond, Xilinx and Citrix all run from
+2016-01-04 to each company's last trading day. Alpaca's asset list does not include most of
+these tickers, so it cannot say which stocks existed on a given date. The missing piece for
+2016 onward is a point-in-time membership list (for example S&P 500 or Russell 1000
+constituents by date) to request bars from. Ticker reuse, where a recycled symbol could join
+two companies' histories, has not been checked.
 These are daily strategies, so this means a new daily-bar store next to the minute Parquet
 (500 stocks of minute bars would be about 20 GB and a monthly rebalance gains nothing from
 minutes).
@@ -229,31 +237,36 @@ as a sanity check for #5 before any of this is built.
 |---|---|---|---|
 | [Sharadar bundle](https://data.nasdaq.com/databases/SFA) (Nasdaq Data Link, or via [QuantRocket](https://www.quantrocket.com/pricing/data/sharadar/)) | G11, G12, G13 (insiders, 8-K events, S&P 500 constituents) | Not public; shown after login | Prices from 1998, fundamentals from 1990, about 9,000 delisted companies |
 | [Norgate Data Platinum](https://norgatedata.com/stockmarketpackages.php) | G11 (prices, delisted, historical index constituents) | $630 a year | Prices and index membership only; no earnings or insider data |
+| Alpaca (already in btest) | G11 from 2016: prices including delisted companies | Free with the existing account | Asset list omits dead tickers; needs an external membership list |
 | SEC EDGAR (free) | G12 ([Financial Statement Data Sets](https://www.sec.gov/data/financial-statements/aqfs.pdf), from 2009), G13 (Form 4, 8-K) | Free | No prices; a lot of parsing work |
 | [Massive](https://massive.com/pricing) (formerly Polygon) | G14 (options since 2014); stocks plans $29-199 a month | Options price not shown publicly | Whether its stock history includes delisted tickers is unverified |
 | ORATS, Cboe DataShop | G14 | Paid | Standard options-research sources |
 
-Sharadar covers G11 through G13 in one purchase, which makes it the first thing to price. The
-free route (EDGAR plus a free constituent list) still leaves delisted-company prices
-unsolved.
+For 2016 onward, G11 needs no purchase: Alpaca supplies the prices, delisted companies
+included, and a free constituent list supplies the universe. A paid source earns its cost in
+two cases: history before 2016 (to include the 2000-2002 and 2008 bear markets), and cleaned
+fundamentals and events (G12, G13) without parsing EDGAR. Sharadar covers both in one purchase,
+which makes it the first thing to price if either matters.
 
 ## Order of work
 
 | Phase | Gaps | Unlocks | Size |
 |---|---|---|---|
 | A | G1, G2, G3, G4, G5 | 1, 7, 8, 10, and 9 (turn of month at the next open) | Medium |
-| B | G11, G12, G13, G8 | 2, 3, 4, 6, and 9 (FOMC) | Large; needs the data purchase decision |
+| B | G11, G12, G13, G8 | 2, 3, 4, 6, and 9 (FOMC) | Large; 2016+ stock momentum needs no purchase |
 | C | G14 | 5 | Large; needs options data |
 | D | G9, G10 | Fast multi-asset sweeps, walk-forward, deflated Sharpe | Medium; runs alongside B |
 | E | G6, G7 | Close-of-day fills, and the ruled-out overnight, ORB and pairs checks | Medium |
 
 Phase A needs no new data and covers the top-ranked strategy. Phase B covers four of the top
-six and is where most of the value is, but it starts with a purchase decision.
+six. Its first step, stock momentum on Alpaca prices plus a free membership list, needs no
+purchase; fundamentals, events and pre-2016 history are where a purchase comes in.
 
 ## Decisions for the user
 
-- Which stock data source to buy for phase B: price the Sharadar bundle first; Norgate covers
-  prices only; the free EDGAR route leaves delisted prices unsolved.
+- Whether 2016 onward is enough history for the stock strategies. If yes, stock momentum
+  runs on Alpaca plus a free membership list, and fundamentals can come from EDGAR. If not,
+  price the Sharadar bundle (history from 1998, plus fundamentals and events).
 - Whether options (#5) are worth a paid options dataset and the largest engine change.
 - Whether the live account will be margin or cash. A cash account still allows #5
   (cash-secured puts) but rules out shorting.
