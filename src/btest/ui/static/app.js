@@ -14,6 +14,12 @@ const num = (v, d = 2) => (v == null ? "–" : sign(v, Math.abs(v).toLocaleStrin
     {minimumFractionDigits: d, maximumFractionDigits: d})));
 const int = v => (v == null ? "–" : Math.round(v).toLocaleString("en-US"));
 // Share counts: whole numbers as is, fractional shares to three decimals.
+// Long universes (portfolio strategies) collapse to the first few tickers and a count; the
+// full list is on hover.
+const symbolList = (syms, shown = 3) => syms.length <= shown + 1
+    ? syms.join(" ")
+    : h("span", {title: syms.join(" ")}, syms.slice(0, shown).join(" ") + " ",
+        h("span", {class: "muted"}, `+${syms.length - shown}`));
 const shares = v => (v == null ? "–" : v.toLocaleString("en-US", {maximumFractionDigits: 3}));
 const money = v => (v == null ? "–" : sign(v, "$" + Math.abs(Math.round(v)).toLocaleString("en-US")));
 const day = s => (s ? s.slice(0, 10) : "–");
@@ -376,7 +382,7 @@ async function runsPage() {
          cell: r => [strategyName(r.strategy).cls, h("small", {}, strategyName(r.strategy).file)]},
         {key: "edit", label: "", cell: r => r.strategy_id ? h("a", {class: "mini-link", href: `#/strategies/${r.strategy_id}`,
             title: "Open this strategy in the editor"}, "edit") : null},
-        {key: "symbols", label: "Symbols", cell: r => r.symbols.join(" ")},
+        {key: "symbols", label: "Symbols", value: r => r.symbols.length, cell: r => symbolList(r.symbols)},
         {key: "tf", label: "Bars", value: r => r.timeframe, cell: r => h("span", {class: "num", style: "font-size:13px"}, r.timeframe)},
         {key: "window", label: "Window", value: r => r.start,
          cell: r => h("span", {class: "num", style: "font-size:13px"}, `${day(r.start)} to ${day(r.end)}`)},
@@ -426,7 +432,7 @@ async function runPage(id) {
           r.git_dirty ? h("span", {class: "flag quiet"}, "uncommitted") : null,
           r.strategy_id ? h("a", {class: "mini-link", href: `#/strategies/${r.strategy_id}`}, `Edit strategy (ran v${r.version})`) : null),
         h("div", {style: "display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:-8px 0 18px;color:var(--dim)"},
-          h("span", {}, r.symbols.join(" ")),
+          h("span", {}, symbolList(r.symbols, 6)),
           h("span", {class: "pill", title: "Bar size the strategy traded on"}, h("i", {}, "bars "), r.config.timeframe || "1m"),
           h("span", {class: "num", style: "font-size:13px"}, `${day(r.start)} to ${day(r.end)}`),
           paramPills(r.params, ["symbol"])),
