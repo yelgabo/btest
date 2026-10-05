@@ -412,6 +412,7 @@ async function runPage(id) {
     const r = await api(`/api/runs/${id}`);
     const {cls, file} = strategyName(r.strategy);
     const M = r.metrics, B = r.benchmark;
+    const BN = (B && B.name) || "SPY";
     const dates = r.equity.map(e => e[0]);
     const eq = r.equity.map(e => e[1]);
     const bench = r.equity.map(e => e[2]);
@@ -432,10 +433,10 @@ async function runPage(id) {
     ];
 
     const figs = h("div", {class: "figures"},
-        figure("Total return", pct(M.total_return, 1), "SPY " + pct(B.total_return, 1), tone(M.total_return)),
-        figure("CAGR", pct(M.cagr), "SPY " + pct(B.cagr), tone(M.cagr)),
-        figure("Sharpe", num(M.sharpe), "SPY " + num(B.sharpe)),
-        figure("Max drawdown", pct(M.max_drawdown), "SPY " + pct(B.max_drawdown)),
+        figure("Total return", pct(M.total_return, 1), BN + " " + pct(B.total_return, 1), tone(M.total_return)),
+        figure("CAGR", pct(M.cagr), BN + " " + pct(B.cagr), tone(M.cagr)),
+        figure("Sharpe", num(M.sharpe), BN + " " + num(B.sharpe)),
+        figure("Max drawdown", pct(M.max_drawdown), BN + " " + pct(B.max_drawdown)),
         figure("Exposure", pct(M.exposure, 1), `${int(M.bars)} bars`),
         figure("Fills", int(M.fills), `costs ${money(M.costs)}`));
 
@@ -451,16 +452,16 @@ async function runPage(id) {
                 eqChart.redraw();
             }}, name)));
     const eqOpts = {
-        dates, label: "Equity of the strategy and SPY buy and hold", height: 340, fmt: money,
+        dates, label: `Equity of the strategy and ${BN === "SPY" ? "SPY buy and hold" : BN}`, height: 340, fmt: money,
         tickFmt: v => (v === 0 ? "$0" : v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : "$" + Math.round(v / 1e3) + "k"),
         endLabels: true, group, ref: r.config.cash,
         series: [{name: "Strategy", values: eq, color: "var(--s1)"},
-                 {name: "SPY", values: bench, color: "var(--dim)", width: 1.5}],
+                 {name: BN, values: bench, color: "var(--dim)", width: 1.5}],
     };
     Object.defineProperty(eqOpts, "log", {get: () => log});
     const eqPanel = h("section", {class: "panel"},
         h("h2", {}, "Equity", h("span", {class: "legend"},
-            h("span", {style: "--c:var(--s1)"}, "Strategy"), h("span", {style: "--c:var(--dim)"}, "SPY buy and hold")),
+            h("span", {style: "--c:var(--s1)"}, "Strategy"), h("span", {style: "--c:var(--dim)"}, BN === "SPY" ? "SPY buy and hold" : `${BN} (SPY/AGG, rebalanced monthly)`)),
           h("span", {class: "spacer"}), seg),
         h("div", {class: "body"}, eqEl));
     const ddPanel = h("section", {class: "panel"}, h("h2", {}, "Drawdown from peak"), h("div", {class: "body"}, ddEl));
@@ -525,11 +526,18 @@ async function runPage(id) {
           h("dt", {}, "Bars"), h("dd", {}, c.timeframe || "1m"),
           h("dt", {}, "Starting cash"), h("dd", {}, money(c.cash)),
           h("dt", {}, "Slippage"), h("dd", {}, `${c.costs.slippage_bps} bps`),
-          h("dt", {}, "Commission"), h("dd", {}, `$${c.costs.commission_per_share}/share`),
+          ...(c.engine === "portfolio" ? [
+              h("dt", {}, "Decides"), h("dd", {}, `${c.rebalance}, 15:30 New York time, fills at 15:45`),
+              h("dt", {}, "Shares"), h("dd", {}, c.fractional ? "fractional" : "whole only"),
+              h("dt", {}, "Idle cash"), h("dd", {}, c.cash_yield ? "earns the T-bill rate" : "earns nothing"),
+              h("dt", {}, "Option spread"), h("dd", {}, `${pct(c.costs.option_half_spread, 0)} of price each way, min $${c.costs.option_min_half_spread}`),
+          ] : [
+              h("dt", {}, "Commission"), h("dd", {}, `$${c.costs.commission_per_share}/share`),
+              h("dt", {}, "Shorting"), h("dd", {}, c.allow_short ? "allowed" : "off"),
+          ]),
           h("dt", {}, "SEC fee rate"), h("dd", {}, String(c.costs.sec_fee_rate)),
-          h("dt", {}, "Shorting"), h("dd", {}, c.allow_short ? "allowed" : "off"),
-          h("dt", {}, "Sortino"), h("dd", {}, num(M.sortino) + "  (SPY " + num(B.sortino) + ")"),
-          h("dt", {}, "Volatility"), h("dd", {}, pct(M.ann_vol) + "  (SPY " + pct(B.ann_vol) + ")"),
+          h("dt", {}, "Sortino"), h("dd", {}, num(M.sortino) + `  (${BN} ` + num(B.sortino) + ")"),
+          h("dt", {}, "Volatility"), h("dd", {}, pct(M.ann_vol) + `  (${BN} ` + pct(B.ann_vol) + ")"),
           h("dt", {}, "Longest drawdown"), h("dd", {}, `${int(M.max_drawdown_days)} days`),
           h("dt", {}, "Win rate"), h("dd", {}, pct(M.win_rate, 1) + " of closing fills"),
           h("dt", {}, "Turnover"), h("dd", {}, num(M.turnover, 1) + "× equity a year"),
@@ -564,7 +572,7 @@ async function runPage(id) {
         const dc = lineChart(ddEl, {dates, label: "Drawdown from peak", height: 170, zeroTop: true, group,
             fmt: v => pct(v), tickFmt: v => pct(v, 0), endLabels: true,
             series: [{name: "Strategy", values: dd(eq), color: "var(--s1)"},
-                     {name: "SPY", values: dd(bench), color: "var(--dim)", width: 1.5}]});
+                     {name: BN, values: dd(bench), color: "var(--dim)", width: 1.5}]});
         refreshers.push(ec.redraw, dc.redraw);
     });
     return nodes;

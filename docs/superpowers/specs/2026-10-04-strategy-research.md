@@ -159,7 +159,7 @@ a 60/40 SPY/AGG mix is the fair comparison for GTAA, not SPY alone.
 
 Market-on-close and market-on-open orders are out: the user does not want closing-auction
 strategies, and Alpaca rejects fractional orders with those time-in-force values anyway. Live
-trading uses fractional `day` market orders at 15:40 (see
+trading uses fractional `day` market orders at 15:45 (see
 [2026-10-04-live-strategies.md](2026-10-04-live-strategies.md)). Stop, limit and bracket orders
 with an intrabar fill rule remain listed only for testing the opening range breakout.
 
@@ -266,7 +266,7 @@ A backtest is only honest if it uses each piece of data at the time it would arr
 
 | Source | Live? | Timing to copy in the backtest |
 |---|---|---|
-| Alpaca prices | Yes | Free plan: real-time IEX (one exchange), SIP 15 minutes delayed. Strategies decide at 15:30 on SIP data through about 15:14 and trade with fractional market orders at 15:40. |
+| Alpaca prices | Yes | Free plan: real-time IEX (one exchange), SIP 15 minutes delayed. Strategies decide at 15:30 on SIP data through about 15:14 and trade with fractional market orders at 15:45. |
 | S&P 500 membership | Yes, with lag | The GitHub list is updated by hand. Live, use the current list (for example the SPY fund's published holdings); a few days' lag barely matters for a monthly rebalance. |
 | SEC companyfacts | Yes | SEC says under a minute after a filing. Financials arrive with the 10-Q or 10-K, so the backtest must use the `filed` date, never the quarter end. |
 | SEC earnings releases | Partly | The 8-K (item 2.02) lands within a second, but the earnings figures sit in an untagged press release. The tagged numbers come with the 10-Q, often weeks later. A drift strategy either trades on the 10-Q date (catching less of the drift) or extracts EPS from the press release text. The backtest must use whichever the live system will. |

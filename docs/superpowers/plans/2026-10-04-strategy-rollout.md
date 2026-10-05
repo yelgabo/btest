@@ -29,6 +29,46 @@ Step 9 depends only on steps 1, 2 (cash yield on collateral) and 4 (broker adapt
 It does not need the stock universe, SEC data or the fast path, so it can move up to any
 point after step 4.
 
+## Status (2026-10-04)
+
+Steps 1, 2, 3, 4 and 9 are built, tested (89 tests) and deployed. Step 4's month of paper trading
+starts with the first scheduled decision on 2026-10-30; until then the live cycle has been
+checked by a dry-run decision, a paper order submit and cancel, and unit tests, not by a full
+session.
+
+Changes from the plan made while building:
+
+- Live orders go out at 15:45, the time the backtest fills at, rather than 15:40.
+- Option orders are limit orders: priced from the last 30-minute bar before the cutoff, minus
+  or plus half the spread (5% of price, at least $0.01). The backtest fills one only if the
+  15:30-16:00 bar traded through the limit.
+- Put writing runs on XLF, not SPY: a cash-secured SPY put needs over $50,000 of cash, more
+  than the $20,000 account. XLF puts need about $4,000 each.
+- Alpaca's paper account would not lower its options level below 3, so cash-secured puts are
+  enforced by btest (backtest and live), not by the broker.
+
+### Baselines
+
+Lab runs on the website, $20,000 start, fractional shares, idle cash at the T-bill rate. Every
+2016-2024 strategy trailed SPY on return in that bull market. All except dual momentum had much
+smaller drawdowns.
+
+| Run | Strategy | Window | CAGR | Sharpe | Max drawdown | Benchmark CAGR / drawdown |
+|---|---|---|---|---|---|---|
+| 12 | baseline/buy_hold (SPY) | 2016-2024 | 13.8% | 0.73 | -32.1% | SPY 14.5% / -33.8% |
+| 13 | portfolio/trend_gtaa | 2016-2024 | 5.1% | 0.51 | -7.6% | SPY 14.5% / -33.8% |
+| 14 | portfolio/trend_gtaa | 2016-2024 | 5.1% | 0.51 | -7.6% | 60/40 9.3% / -21.7% |
+| 15 | portfolio/dual_momentum | 2016-2024 | 6.7% | 0.37 | -33.7% | SPY |
+| 16 | portfolio/sector_momentum | 2016-2024 | 5.3% | 0.30 | -22.5% | SPY |
+| 17 | mean_reversion/rsi2_basket | 2016-2024 | 4.1% | 0.39 | -9.8% | SPY |
+| 18 | calendar/turn_of_month | 2016-2024 | 4.4% | 0.38 | -9.2% | SPY |
+| 19 | risk/risk_parity | 2016-2024 | 4.0% | 0.32 | -19.6% | 60/40 9.3% / -21.7% |
+| 20 | options/put_write (XLF) | Feb-Dec 2024 | 12.0% | 1.70 | -2.7% | SPY 23.5% / -8.4% |
+| 21 | baseline/buy_hold (SPY) | Feb-Dec 2024 | 23.5% | 1.35 | -8.3% | SPY 23.5% / -8.4% |
+
+Buy-and-hold trails the SPY benchmark slightly because dividends arrive as cash (earning
+T-bills) instead of being reinvested.
+
 ## Decisions (2026-10-04)
 
 1. **History:** 2016-2024 is enough for the stock strategies for now. No paid price data.

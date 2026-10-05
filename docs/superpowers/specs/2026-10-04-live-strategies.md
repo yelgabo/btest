@@ -6,7 +6,7 @@ this one says how each runs live: where every input comes from, how the system l
 data exists, when it decides, and what orders it sends.
 
 ![Live trading day: EDGAR and Alpaca feed a point-in-time store through a filing watcher and a
-price snapshot; a 15:30 decision run computes targets, a 15:40 order run sends them to Alpaca,
+price snapshot; a 15:30 decision run computes targets, a 15:45 order run sends them to Alpaca,
 and a 16:15 reconcile compares fills with the backtest](2026-10-04-live-day.png)
 
 Diagram source: [`2026-10-04-live-day.html`](2026-10-04-live-day.html).
@@ -66,7 +66,7 @@ back by three hours.
 | Every 10 min, 06:00-20:00 | Filing watcher | Read the latest-filings feed for `10-Q`, `10-K`, `8-K` and `4`. Keep entries whose CIK is in the universe and whose accession number is new. For each, fetch what the strategy needs (below) and append it with the filing's acceptance time. |
 | 15:30 | Price snapshot | Pull SIP minute bars through the latest available minute (about 15:14, because of the 15-minute delay) for the universe and append them. |
 | 15:30 | Decision run | For each strategy scheduled today, call `decide(now, data)`, save the target weights. |
-| 15:40 | Order run | Read Alpaca positions, diff against targets, send sells as `day` market orders, wait for fills (up to 5 minutes), then send buys sized from the cash actually received. Every order gets a `client_order_id` of `strategy:date:symbol:leg`, so a retried run cannot double-order. |
+| 15:45 | Order run | Read Alpaca positions, diff against targets, send sells as `day` market orders, wait for fills (up to 5 minutes), then send buys sized from the cash actually received. Every order gets a `client_order_id` of `strategy:date:symbol:leg`, so a retried run cannot double-order. |
 | 16:15 | Reconcile | Read fills and positions from Alpaca, store them, and compare with what the backtest fill model says should have happened today. Alarm if they differ by more than a set tolerance. |
 | 18:00 | Price ingest | Existing nightly ingest (22:00 UTC) fills the day's full minute bars. |
 | ~01:00 | Filing reconcile | Read yesterday's `form.YYYYMMDD.idx` and fetch any universe filing the watcher missed. A miss is logged, since it means the intraday feed lagged. |
@@ -76,7 +76,7 @@ open plus the spread cost. That replaces today's "fill at the next bar's open", 
 bars means tomorrow morning, a different trade from the one the live system makes.
 
 Market-on-close and market-on-open orders are not used (user decision, 2026-10-04). Every
-strategy trades with fractional `day` market orders in the 15:40 run, so backtest and live share
+strategy trades with fractional `day` market orders in the 15:45 run, so backtest and live share
 one fill rule.
 
 ## Worked example: multi-factor stocks from SEC financials (#3)
@@ -107,7 +107,7 @@ field is excluded from ranking and listed on the run page, never silently scored
 3. Turn each into a cross-sectional z-score, average them, take the top 25.
 4. Target weight 4% each; fractional shares make $800 positions exact at $20k.
 
-**Orders.** The 15:40 order run sells names that dropped out, then buys new names and tops up
+**Orders.** The 15:45 order run sells names that dropped out, then buys new names and tops up
 the rest, all as fractional `day` market orders.
 
 **When something breaks.**
@@ -128,7 +128,7 @@ Numbers match the research doc's ranking.
 | 2 | Stock momentum | Stock closes, Alpaca; index members, SPY holdings | Snapshot; weekly universe refresh | Monthly, 15:30 | As #1 | A stock leaving the index is sold at the next rebalance, not the day it leaves (state this in the backtest too) |
 | 3 | Multi-factor | SEC companyfacts + Alpaca | Filing watcher on `10-Q`/`10-K` | Monthly, 15:30 | As #1 | Concept mapping needs upkeep; the coverage check flags gaps |
 | 4 | Post-earnings drift | Earnings per share: SEC companyfacts (from the 10-Q) | Filing watcher on `10-Q`/`10-K` | Daily, 15:30, for filings accepted since yesterday's run | Buy on signal, sell after 60 trading days | Uses the 10-Q date, which comes days to weeks after the earnings release. The faster version reads EPS from the 8-K press release text, which is untagged and needs an extractor; it may only go live if the backtest runs the same extractor over past press releases. Start with the 10-Q version. |
-| 5 | Put writing | SPY option chain and quotes, Alpaca | 15:30 options snapshot | Expiry day, or the day after an assignment | Sell one cash-secured put about 30 days out (level 1) | Assignment must be polled from REST activities (no websocket; next-day on paper). If assigned, sell the shares at the next 15:40 run. Backtest data starts February 2024, so the backtest is short. |
+| 5 | Put writing | XLF option chain (a SPY put needs over $50,000 of cash) and quotes, Alpaca | 15:30 options snapshot | Expiry day, or the day after an assignment | Sell one cash-secured put about 30 days out (level 1) | Assignment must be polled from REST activities (no websocket; next-day on paper). If assigned, sell the shares at the next 15:45 run. Backtest data starts February 2024, so the backtest is short. |
 | 6 | Insider buying | Form 4 XML from EDGAR | Filing watcher on `4`; parse transaction code `P`, price, shares, insider's role | Daily, 15:30, over filings in the last 30 days | Buy on a cluster signal, hold a fixed period | Form 4 is due within two business days of the trade, so the signal is at least that stale; the backtest uses the filing time, not the trade date. Backtest data comes from SEC's quarterly data sets; check once that the live XML parser and the data sets agree on the same quarter. |
 | 7 | ETF relative momentum | ETF closes, Alpaca | Snapshot | Monthly, 15:30 | As #1 | None |
 | 8 | Short-term mean reversion | ETF closes, Alpaca | Snapshot | Daily, 15:30 | As #1 | Daily trading makes the backtest's spread cost decisive |

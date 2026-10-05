@@ -114,7 +114,7 @@ Sweeps of portfolio strategies wait for a portfolio fast path.
 ## Live trading (Alpaca paper)
 
 The worker trades enabled deployments on the same timing: 15:30 refresh bars and run
-`decide()` in the sandboxed child (no broker keys), 15:40 sell then buy, 16:15 read fills back
+`decide()` in the sandboxed child (no broker keys), 15:45 sell then buy, 16:15 read fills back
 and compare each with the backtest's fill price. A kill switch disables a deployment after a
 daily loss beyond `max_daily_loss`; orders above `max_order` x capital are refused. Strategies
 see cash capped at the deployed capital even when the account holds more.
