@@ -1,0 +1,24 @@
+
+17 equity ETFs (same as btest runs): 17 symbols, 2016-01-05 to 2024-12-31, 2263 days
+strategy                       wealth    CAGR  Sharpe   maxDD  turnover/yr
+CWMR (their variant)             4.64   18.6%    0.71  -31.8%          360x
+PAMR (their settings)            3.02   13.1%    0.48  -42.2%          141x
+OLMAR (their code)               2.73   11.8%    0.45  -35.5%            0x
+                            OLMAR days the portfolio changed: 0 of 2262
+Anticor                          2.14    8.8%    0.29  -41.6%          264x
+RMR                              2.73   11.8%    0.45  -35.3%            4x
+FTRL                             2.73   11.8%    0.45  -35.4%            0x
+CRP (daily)                      2.73   11.8%    0.45  -35.5%            0x
+SPY buy and hold                 3.37   14.5%
+
+16 ETFs without XLC (full history): 16 symbols, 2016-01-05 to 2024-12-31, 2263 days
+strategy                       wealth    CAGR  Sharpe   maxDD  turnover/yr
+CWMR (their variant)             4.25   17.5%    0.67  -33.1%          353x
+PAMR (their settings)            3.05   13.2%    0.48  -42.9%          135x
+OLMAR (their code)               2.76   12.0%    0.46  -35.8%            0x
+                            OLMAR days the portfolio changed: 0 of 2262
+Anticor                          2.37   10.1%    0.35  -36.1%          264x
+RMR                              2.76   12.0%    0.46  -35.7%            4x
+FTRL                             2.76   12.0%    0.46  -35.8%            0x
+CRP (daily)                      2.76   12.0%    0.46  -35.8%            0x
+SPY buy and hold                 3.37   14.5%

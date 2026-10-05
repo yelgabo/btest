@@ -7,7 +7,7 @@ class ConstantRebalanced(Strategy):
     9.2x, 1998-2010) by selling what rose and buying what fell back to equal weights."""
 
     universe = ["SPY", "QQQ", "IWM", "DIA", "EFA", "EEM", "XLK", "XLF", "XLV", "XLE", "XLI",
-                "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC"]
+                "XLY", "XLP", "XLU", "XLB", "XLRE"]
     rebalance = "daily"
     params = {"monthly": True}
 

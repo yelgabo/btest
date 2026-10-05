@@ -1,0 +1,23 @@
+[25/100] fetched
+[50/100] fetched
+[75/100] fetched
+[100/100] fetched
+97 tickers with data, 80 with the full 2016-2024 history, 2264 days
+
+all current members (late listings held at ratio 1.0, as the paper does): 97 stocks
+  CRP daily                  24.1%  Sharpe 1.18
+  CWMR (their variant)    0bp  31.4% (Sh 1.06)  1bp  27.9% (Sh 0.96)  3bp  21.0% (Sh 0.78)  5bp  14.5% (Sh 0.60)  | 1-day delay  33.5%  | maxDD -37%  turnover 274x
+  PAMR (their settings)   0bp  27.8% (Sh 1.09)  1bp  24.3% (Sh 0.98)  3bp  17.6% (Sh 0.76)  5bp  11.2% (Sh 0.54)  | 1-day delay  26.5%  | maxDD -49%  turnover 276x
+
+members with full 2016-2024 history: 80 stocks
+  CRP daily                  25.8%  Sharpe 1.18
+  CWMR (their variant)    0bp  22.0% (Sh 0.95)  1bp  18.5% (Sh 0.82)  3bp  11.8% (Sh 0.58)  5bp   5.4% (Sh 0.34)  | 1-day delay  20.2%  | maxDD -41%  turnover 291x
+  PAMR (their settings)   0bp  30.2% (Sh 1.14)  1bp  26.6% (Sh 1.03)  3bp  19.6% (Sh 0.82)  5bp  13.1% (Sh 0.60)  | 1-day delay  26.8%  | maxDD -42%  turnover 280x
+  paired vs CRP, all members  CWMR 0bp: Sharpe diff -0.13, z -0.49, p 0.62
+  paired vs CRP, all members  CWMR 1bp: Sharpe diff -0.22, z -0.84, p 0.40
+  paired vs CRP, all members  PAMR 0bp: Sharpe diff -0.10, z -0.67, p 0.51
+  paired vs CRP, all members  PAMR 1bp: Sharpe diff -0.21, z -1.41, p 0.16
+  paired vs CRP, full history CWMR 0bp: Sharpe diff -0.23, z -1.24, p 0.21
+  paired vs CRP, full history CWMR 1bp: Sharpe diff -0.35, z -1.90, p 0.06
+  paired vs CRP, full history PAMR 0bp: Sharpe diff -0.04, z -0.26, p 0.80
+  paired vs CRP, full history PAMR 1bp: Sharpe diff -0.14, z -1.05, p 0.29

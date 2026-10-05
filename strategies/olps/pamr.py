@@ -18,7 +18,7 @@ class PAMR(Strategy):
     session's winners toward its losers, by an amount capped at C. Rebalances every session."""
 
     universe = ["SPY", "QQQ", "IWM", "DIA", "EFA", "EEM", "XLK", "XLF", "XLV", "XLE", "XLI",
-                "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC"]
+                "XLY", "XLP", "XLU", "XLB", "XLRE"]
     rebalance = "daily"
     # The NYU paper's tuned settings (its Exhibit A), which beat Li et al.'s epsilon=0.5 here.
     params = {"epsilon": 0.9, "C": 10.0}

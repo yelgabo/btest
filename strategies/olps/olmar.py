@@ -19,7 +19,7 @@ class OLMAR(Strategy):
     going in are read back from the account, so nothing is remembered between decisions."""
 
     universe = ["SPY", "QQQ", "IWM", "DIA", "EFA", "EEM", "XLK", "XLF", "XLV", "XLE", "XLI",
-                "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC"]
+                "XLY", "XLP", "XLU", "XLB", "XLRE"]
     rebalance = "daily"
     params = {"window": 5, "epsilon": 10.0}
 
