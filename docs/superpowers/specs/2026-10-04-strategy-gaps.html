@@ -46,7 +46,8 @@ the strategy research, tagged with their gap number (G1 to G11). October 4, 2026
       <desc id="sg-desc">
         Data lane: a universe list (new, G1) tells ingest which symbols to fetch from Alpaca;
         ingest writes minute bars to Parquet and corporate actions and rates to Postgres. A new
-        daily-bar store with index membership (G11) serves stock momentum. Engine lane: the
+        store for survivorship-free stock prices, fundamentals, events and option chains
+        (G11 to G14) serves the stock and options strategies. Engine lane: the
         event engine loads bars and gains a rebalance hook, batch rebalancing, fractional
         shares, cash yield, order types, a margin model and a spread table. The fast path gains
         a portfolio kernel. Research lane: the engine saves runs to Postgres; the fast path feeds sweeps, whose
@@ -94,8 +95,8 @@ the strategy research, tagged with their gap number (G1 to G11). October 4, 2026
 
       <path class="newstore" d="M1420 262A140 16 0 0 1 1700 262V350A140 16 0 0 1 1420 350Z"/>
       <ellipse class="newcap" cx="1560" cy="262" rx="140" ry="16"/>
-      <text class="title" x="1560" y="302" text-anchor="middle">Daily stock store</text>
-      <text class="new-detail" x="1560" y="330" text-anchor="middle">G11: delisted + membership</text>
+      <text class="title" x="1560" y="302" text-anchor="middle">Stock and options data</text>
+      <text class="new-detail" x="1560" y="330" text-anchor="middle">G11-G14: delisted, filings, chains</text>
 
       <path class="edge" d="M300 140H400"/>
       <text class="edge-label" x="350" y="126" text-anchor="middle">symbols</text>
@@ -187,9 +188,8 @@ the strategy research, tagged with their gap number (G1 to G11). October 4, 2026
     </svg>
   </div>
   <figcaption>
-    Solid outlines exist today; dashed gold outlines are proposed. The daily stock store (G11)
-    is drawn apart because only stock momentum needs it and it depends on a data-source
-    decision. Cylinders are stores.
+    Solid outlines exist today; dashed gold outlines are proposed. The stock and options data store (G11 to G14) is drawn apart because it depends on a
+    data purchase decision. Cylinders are stores.
   </figcaption>
 </figure>
 </main>
