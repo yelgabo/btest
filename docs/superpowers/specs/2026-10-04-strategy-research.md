@@ -39,6 +39,10 @@ sample and 58% after publication
 
 ## Candidate strategies
 
+Every candidate must also run live without manual steps: inputs discovered and fetched
+automatically, a fixed decision time, and orders Alpaca accepts. How each one does that is in
+[2026-10-04-live-strategies.md](2026-10-04-live-strategies.md); all ten pass.
+
 Ranked on three things only: how strong and durable the published evidence is, whether the edge
 survives at $20k (costs, capacity, shorting), and how bad the worst case is. What btest can test
 today is not a criterion; missing data and features are listed under Gaps with their cost. An
@@ -151,14 +155,13 @@ against SPY. Credit idle cash daily at the T-bill rate already in `market.rate` 
 since Alpaca's brokerage cash yield depends on the account). Also let a run choose its benchmark:
 a 60/40 SPY/AGG mix is the fair comparison for GTAA, not SPY alone.
 
-### G6. Order types (improves 9; needed for the overnight and ORB checks)
+### G6. Order types (needed only for the ruled-out ORB check)
 
-- **Market-on-close and market-on-open.** Overnight hold and turn of month trade at the close.
-  With 1D bars the next fill is tomorrow's open, which is a different strategy.
-- **Stop and limit orders** with an intrabar fill rule: a stop triggers when a later minute's
-  high or low crosses it, fills at the stop price or the bar's open if it gapped through. The
-  minute data makes this testable for 5m strategies.
-- **Brackets** (entry plus stop plus target), which ORB needs.
+Market-on-close and market-on-open orders are out: the user does not want closing-auction
+strategies, and Alpaca rejects fractional orders with those time-in-force values anyway. Live
+trading uses fractional `day` market orders at 15:40 (see
+[2026-10-04-live-strategies.md](2026-10-04-live-strategies.md)). Stop, limit and bracket orders
+with an intrabar fill rule remain listed only for testing the opening range breakout.
 
 ### G7. Short selling and margin (only the lower-ranked pairs and ORB short side)
 
@@ -263,7 +266,7 @@ A backtest is only honest if it uses each piece of data at the time it would arr
 
 | Source | Live? | Timing to copy in the backtest |
 |---|---|---|
-| Alpaca prices | Yes | Free plan: real-time IEX (one exchange), SIP 15 minutes delayed. Daily and monthly strategies can decide shortly before the close and send market-on-close orders. |
+| Alpaca prices | Yes | Free plan: real-time IEX (one exchange), SIP 15 minutes delayed. Strategies decide at 15:30 on SIP data through about 15:14 and trade with fractional market orders at 15:40. |
 | S&P 500 membership | Yes, with lag | The GitHub list is updated by hand. Live, use the current list (for example the SPY fund's published holdings); a few days' lag barely matters for a monthly rebalance. |
 | SEC companyfacts | Yes | SEC says under a minute after a filing. Financials arrive with the 10-Q or 10-K, so the backtest must use the `filed` date, never the quarter end. |
 | SEC earnings releases | Partly | The 8-K (item 2.02) lands within a second, but the earnings figures sit in an untagged press release. The tagged numbers come with the 10-Q, often weeks later. A drift strategy either trades on the 10-Q date (catching less of the drift) or extracts EPS from the press release text. The backtest must use whichever the live system will. |
@@ -279,11 +282,11 @@ everything above.
 
 | Phase | Gaps | Unlocks | Size |
 |---|---|---|---|
-| A | G1, G2, G3, G4, G5 | 1, 7, 8, 10, and 9 (turn of month at the next open) | Medium |
+| A | G1, G2, G3, G4, G5 | 1, 7, 8, 9 (turn of month), 10 | Medium |
 | B | G11, G12, G13, G8 | 2, 3, 4, 6, and 9 (FOMC) | Large; 2016+ stock momentum needs no purchase |
 | C | G14 | 5 | Large; needs options data |
 | D | G9, G10 | Fast multi-asset sweeps, walk-forward, deflated Sharpe | Medium; runs alongside B |
-| E | G6, G7 | Close-of-day fills, and the ruled-out overnight, ORB and pairs checks | Medium |
+| E | G6, G7 | The ruled-out ORB and pairs checks | Medium |
 
 Phase A needs no new data and covers the top-ranked strategy. Phase B covers four of the top
 six. Its first step, stock momentum on Alpaca prices plus a free membership list, needs no
