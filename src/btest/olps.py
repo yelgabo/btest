@@ -527,13 +527,32 @@ class MetaExperts(Online):
 class OnlineStrategy(Strategy):
     """Base for btest strategies built on an `Online` algorithm. Subclasses set universe,
     rebalance and params, implement make(n) to build the algorithm, and define
-    `def decide(self, as_of, data): return self.run_online(data)`."""
+    `def decide(self, as_of, data): return self.run_online(data)`.
+
+    bars = "monthly" feeds the algorithm month-over-month price ratios (closes on each month's
+    last session, then today's price) instead of daily ones; pair it with
+    rebalance = "month_end"."""
+
+    bars = "daily"
 
     def make(self, n: int) -> Online:
         raise NotImplementedError
 
+    def _closes(self, data) -> dict[str, np.ndarray]:
+        if self.bars == "daily":
+            return {s: data.history(s, "close") for s in self.universe}
+        if self.bars != "monthly":
+            raise ValueError('bars must be "daily" or "monthly"')
+        frame = data.frame("close")
+        months = [d.year * 12 + d.month for d in frame["date"].to_list()]
+        # The last session of each completed month, then today.
+        keep = [i for i in range(len(months) - 1) if months[i + 1] != months[i]]
+        keep.append(len(months) - 1)
+        rows = frame[keep]
+        return {s: rows[s].drop_nulls().to_numpy() for s in self.universe}
+
     def run_online(self, data):
-        closes = {s: data.history(s, "close") for s in self.universe}
+        closes = self._closes(data)
         live = tuple(s for s, c in closes.items() if len(c) >= 2)
         if len(live) < 2:
             return None
@@ -544,11 +563,11 @@ class OnlineStrategy(Strategy):
         # to a copy.
         done = rel[:-1]
         state = getattr(self, "_online", None)
-        if state and state["live"] == live and state["rows"] == len(done) - 1:
+        if state and state["live"] == live and state["rows"] <= len(done):
+            # Completed sessions never change, so catch up on any skipped since last time.
             algo = state["algo"]
-            algo.update(done[-1])
-        elif state and state["live"] == live and state["rows"] == len(done):
-            algo = state["algo"]
+            for x in done[state["rows"]:]:
+                algo.update(x)
         else:
             algo = self.make(len(live))
             for x in done:

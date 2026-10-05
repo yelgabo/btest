@@ -144,3 +144,64 @@ def test_strategy_wrapper_cache_equals_full_replay():
         b = fresh.decide(engine.decide_ts[i], Data(engine, i))
         worst = max(worst, max(abs(a.get(k, 0) - b.get(k, 0)) for k in set(a) | set(b)))
     assert worst < 1e-12
+
+
+class MonthlyExample(Example):
+    bars = "monthly"
+    rebalance = "month_end"
+
+
+def test_monthly_bars_use_month_end_closes_and_cache_equals_replay():
+    sessions = nyse_sessions(date(2023, 1, 3), date(2024, 6, 28))
+    dates = sessions["date"].to_list()
+    rel = prices(T=len(dates), N=3, sd=0.015, seed=4)
+    frames = {}
+    for k, s in enumerate(Example.universe):
+        close = 100 * np.cumprod(rel[:, k])
+        frames[s] = pl.DataFrame({
+            "date": dates, **{c: close for c in ("open", "high", "low", "close", "raw_close",
+                                                 "fill", "cut_open", "cut_high", "cut_low",
+                                                 "cut_close", "raw_cut_close")},
+            "volume": np.full(len(dates), 1e6), "cut_volume": np.full(len(dates), 5e5)})
+    engine = PortfolioEngine(Market(dates, frames), sessions, PortfolioConfig())
+    month_ends = [i for i in range(len(dates) - 1) if dates[i + 1].month != dates[i].month]
+    cached, fresh = MonthlyExample(), MonthlyExample()
+    for i in month_ends[2:]:
+        a = cached.decide(engine.decide_ts[i], Data(engine, i))
+        fresh.__dict__.pop("_online", None)
+        b = fresh.decide(engine.decide_ts[i], Data(engine, i))
+        assert max(abs(a.get(k, 0) - b.get(k, 0)) for k in set(a) | set(b)) < 1e-12
+    # The algorithm saw one ratio per month: replaying month-end closes directly agrees.
+    last = month_ends[-1]
+    me = [i for i in month_ends if i < last] + [last]
+    closes = np.column_stack([frames[s]["close"].to_numpy()[me] for s in Example.universe])
+    algo = olps.FollowTheRegularizedLeader(3)
+    for x in closes[1:] / closes[:-1]:
+        algo.update(x)
+    expected = dict(zip(Example.universe, algo.portfolio()))
+    assert all(abs(a[k] - expected[k]) < 1e-12 for k in a)
+
+
+class MonthlyTradingExample(Example):
+    rebalance = "month_end"
+
+
+def test_skipped_sessions_are_caught_up_identically():
+    sessions = nyse_sessions(date(2023, 1, 3), date(2023, 12, 29))
+    dates = sessions["date"].to_list()
+    rel = prices(T=len(dates), N=3, sd=0.015, seed=8)
+    frames = {}
+    for k, s in enumerate(Example.universe):
+        close = 100 * np.cumprod(rel[:, k])
+        frames[s] = pl.DataFrame({
+            "date": dates, **{c: close for c in ("open", "high", "low", "close", "raw_close",
+                                                 "fill", "cut_open", "cut_high", "cut_low",
+                                                 "cut_close", "raw_cut_close")},
+            "volume": np.full(len(dates), 1e6), "cut_volume": np.full(len(dates), 5e5)})
+    engine = PortfolioEngine(Market(dates, frames), sessions, PortfolioConfig())
+    cached, fresh = MonthlyTradingExample(), MonthlyTradingExample()
+    for i in range(5, len(dates), 17):
+        a = cached.decide(engine.decide_ts[i], Data(engine, i))
+        fresh.__dict__.pop("_online", None)
+        b = fresh.decide(engine.decide_ts[i], Data(engine, i))
+        assert max(abs(a.get(k, 0) - b.get(k, 0)) for k in set(a) | set(b)) < 1e-12
