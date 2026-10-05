@@ -307,7 +307,18 @@ only at month end, beats SPY after realistic costs.
   Sharpe test against SPY (not expected to be significant over 21 months).
 - Run once. Whatever the outcome, the strategy is not modified and rerun on this window.
 
-Result: pending.
+Result (btest run 73, lab job 77, 438 sessions): **fail.**
+
+| 2025-01-01 to 2026-10-02 | Monthly CWMR | SPY |
+|---|---|---|
+| CAGR | 18.28% | 18.36% |
+| Total return | 34.1% | 34.2% |
+| Sharpe (T-bill) | 0.81 | 0.87 |
+| Max drawdown | -20.3% | -18.7% |
+
+Paired Sharpe test against SPY: -0.08 (no rf), p 0.77. It beat SPY in 8 of 21 months. Turnover
+16x a year. Out of sample, monthly CWMR matched SPY's return with slightly more risk; the
+2016-2024 lead (18.3% against 13.8%) did not carry over.
 
 ## Applications for btest
 
