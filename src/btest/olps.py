@@ -15,7 +15,7 @@ Where the port deliberately differs from the authors' code, the class docstring 
   whole history at each step, which costs O(T^2) and is not how these methods are described.
 
 `OnlineStrategy` turns any of them into a btest portfolio strategy: at each decision it replays
-the universe's common price history (completed sessions at closing prices, then today at the
+the universe's price history (completed sessions at closing prices, then today at the
 cutoff price), so a live decision in a fresh process gets the same portfolio as a backtest,
 which keeps the state between sessions and applies one update a day.
 """
@@ -539,44 +539,54 @@ class OnlineStrategy(Strategy):
     def make(self, n: int) -> Online:
         raise NotImplementedError
 
-    def _closes(self, data) -> dict[str, np.ndarray]:
-        if self.bars == "daily":
-            return {s: data.history(s, "close") for s in self.universe}
-        period = {"monthly": lambda d: (d.year, d.month),
-                  "weekly": lambda d: d.isocalendar()[:2]}.get(self.bars)
-        if period is None:
-            raise ValueError('bars must be "daily", "weekly" or "monthly"')
+    def _closes(self, data) -> np.ndarray:
+        """One row per bar and one column per universe symbol; NaN before a symbol's data."""
         frame = data.frame("close")
-        keys = [period(d) for d in frame["date"].to_list()]
-        # The last session of each completed period, then today.
-        keep = [i for i in range(len(keys) - 1) if keys[i + 1] != keys[i]]
-        keep.append(len(keys) - 1)
-        rows = frame[keep]
-        return {s: rows[s].drop_nulls().to_numpy() for s in self.universe}
+        if self.bars != "daily":
+            period = {"monthly": lambda d: (d.year, d.month),
+                      "weekly": lambda d: d.isocalendar()[:2]}.get(self.bars)
+            if period is None:
+                raise ValueError('bars must be "daily", "weekly" or "monthly"')
+            keys = [period(d) for d in frame["date"].to_list()]
+            # The last session of each completed period, then today.
+            keep = [i for i in range(len(keys) - 1) if keys[i + 1] != keys[i]]
+            keep.append(len(keys) - 1)
+            frame = frame[keep]
+        return frame.select(self.universe).to_numpy().astype(float)
 
     def run_online(self, data):
         closes = self._closes(data)
-        live = tuple(s for s, c in closes.items() if len(c) >= 2)
-        if len(live) < 2:
+        with np.errstate(invalid="ignore"):
+            rel = closes[1:] / closes[:-1]
+        ok = np.isfinite(rel)
+        first = int(np.argmax(ok.any(axis=1))) if ok.any() else len(rel)
+        rel, ok = rel[first:], ok[first:]
+        if not len(rel) or ok[-1].sum() < 2:
             return None
-        n = min(len(closes[s]) for s in live)
-        rel = np.column_stack([closes[s][-n:][1:] / closes[s][-n:][:-1] for s in live])
+        # A symbol not trading yet gets the mean ratio of those that are. Holding it is then the
+        # same as holding the trading symbols in equal parts, so the algorithm runs on the whole
+        # universe from the first bar and keeps what it learned when a symbol starts trading,
+        # instead of restarting on the history the newest symbol has.
+        mean = np.nanmean(np.where(ok, rel, np.nan), axis=1, keepdims=True)
+        rel = np.where(ok, rel, mean)
         # The last row uses today's price at the cutoff; tomorrow it is replaced by today's
         # close. So the kept state covers completed sessions only, and today's row is applied
         # to a copy.
         done = rel[:-1]
         state = getattr(self, "_online", None)
-        if state and state["live"] == live and state["rows"] <= len(done):
+        if state and state["first"] == first and state["rows"] <= len(done):
             # Completed sessions never change, so catch up on any skipped since last time.
             algo = state["algo"]
             for x in done[state["rows"]:]:
                 algo.update(x)
         else:
-            algo = self.make(len(live))
+            algo = self.make(len(self.universe))
             for x in done:
                 algo.update(x)
-        self._online = {"live": live, "rows": len(done), "algo": algo}
+        self._online = {"first": first, "rows": len(done), "algo": algo}
         today = copy.deepcopy(algo)
         today.update(rel[-1])
         b = today.portfolio()
-        return {s: float(w) for s, w in zip(live, b) if w > 1e-6}
+        live = ok[-1]
+        w = np.where(live, b, 0.0) + live * b[~live].sum() / live.sum()
+        return {s: float(x) for s, x, t in zip(self.universe, w, live) if t and x > 1e-6}

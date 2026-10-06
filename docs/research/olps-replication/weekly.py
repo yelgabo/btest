@@ -126,7 +126,7 @@ class EveryBars(Every):
         frame = data.frame("close")
         last = frame.height - 1
         rows = frame[[i for i in range(last % 5, last + 1, 5)]]
-        return {s: rows[s].drop_nulls().to_numpy() for s in self.universe}
+        return rows.select(self.universe).to_numpy().astype(float)
 
 
 def report(label, st, cls):

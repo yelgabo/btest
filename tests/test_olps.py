@@ -242,3 +242,61 @@ def test_weekly_bars_use_week_end_closes_and_cache_equals_replay():
         algo.update(x)
     expected = dict(zip(Example.universe, algo.portfolio()))
     assert all(abs(a[k] - expected[k]) < 1e-12 for k in a)
+
+
+class LaunchExample(Example):
+    def make(self, n):
+        return olps.CWMRAuthors(n)
+
+
+def test_a_symbol_launching_later_joins_without_restarting_the_algorithm():
+    sessions = nyse_sessions(date(2023, 1, 3), date(2023, 8, 31))
+    dates = sessions["date"].to_list()
+    rel = prices(T=len(dates), N=3, sd=0.015, seed=9)
+    launch = 60
+    frames = {}
+    for k, s in enumerate(Example.universe):
+        close = 100 * np.cumprod(rel[:, k])
+        lo = launch if s == "C" else 0
+        frames[s] = pl.DataFrame({
+            "date": dates[lo:], **{c: close[lo:] for c in (
+                "open", "high", "low", "close", "raw_close", "fill", "cut_open", "cut_high",
+                "cut_low", "cut_close", "raw_cut_close")},
+            "volume": np.full(len(dates) - lo, 1e6), "cut_volume": np.full(len(dates) - lo, 5e5)})
+    engine = PortfolioEngine(Market(dates, frames), sessions, PortfolioConfig())
+    cached, fresh = LaunchExample(), LaunchExample()
+    held_c = False
+    for i in range(2, len(dates)):
+        a = cached.decide(engine.decide_ts[i], Data(engine, i))
+        fresh.__dict__.pop("_online", None)
+        b = fresh.decide(engine.decide_ts[i], Data(engine, i))
+        assert max(abs(a.get(k, 0) - b.get(k, 0)) for k in set(a) | set(b)) < 1e-12
+        assert sum(a.values()) == pytest.approx(1.0)
+        # C needs two prices for a ratio, so it can first be held the session after launch.
+        if i <= launch:
+            assert "C" not in a
+        held_c |= "C" in a
+    assert held_c
+    # Replaying by hand: before C trades, its ratio is the mean of A's and B's, and the weight
+    # the algorithm gives C is split equally between them.
+    last = len(dates) - 1
+    x = 100 * np.cumprod(rel, axis=0)
+    r = x[1:last + 1] / x[:last]
+    r[:launch, 2] = r[:launch, :2].mean(axis=1)
+    algo = olps.CWMRAuthors(3)
+    for row in r:
+        algo.update(row)
+    expected = dict(zip(Example.universe, algo.portfolio()))
+    assert all(abs(a[k] - expected[k]) < 1e-12 for k in a)
+    # Before launch, C's share goes to A and B equally.
+    split = 0
+    for i in range(2, launch):
+        a = LaunchExample().decide(engine.decide_ts[i], Data(engine, i))
+        algo = olps.CWMRAuthors(3)
+        for row in r[:i]:
+            algo.update(row)
+        b = algo.portfolio()
+        assert a.get("A", 0) == pytest.approx(b[0] + b[2] / 2, abs=1e-6)
+        assert a.get("B", 0) == pytest.approx(b[1] + b[2] / 2, abs=1e-6)
+        split += b[2] > 0.01
+    assert split
