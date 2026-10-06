@@ -57,6 +57,30 @@ def paired(eq1, eq2):
     return (s1 - s2) * math.sqrt(252), 2 * (1 - 0.5 * (1 + erf(abs(z) / math.sqrt(2))))
 
 
+def control(start: date, end: date):
+    """Added after the pre-registered run: monthly equal weight in the same 16 slots, to
+    separate the algorithm's effect from the stand-ins' returns."""
+    market, sessions, _ = setup(start, end)
+    rates = tbill()
+    cfg = PortfolioConfig(costs=PortfolioCosts(slippage_bps=0.7))
+    crp = load_strategy_class(Path("strategies/olps/crp.py"))
+    cwmr = load_strategy_class(Path("strategies/olps/cwmr_monthly.py"))
+    eqs = {}
+    for name, cls in (("Monthly CWMR", cwmr), ("Monthly CRP", crp)):
+        r = PortfolioEngine(market, sessions, cfg, rates=rates).run(cls(), start, end)
+        eqs[name] = r.equity
+        st = metrics.compute(r.equity, rates)
+        print(f"  {name:13} CAGR {st['cagr']:6.2%}  Sharpe {st['sharpe']:.2f}  "
+              f"max DD {st['max_drawdown']:6.1%}")
+    d, p = paired(eqs["Monthly CWMR"], eqs["Monthly CRP"])
+    print(f"  paired Sharpe CWMR vs CRP {d:+.2f} (no rf), p {p:.2f}")
+    for lo, hi in ((start, date(1999, 1, 1)), (date(1999, 1, 1), end)):
+        part = {k: v.filter((pl.col("date") >= lo) & (pl.col("date") < hi)) for k, v in eqs.items()}
+        yrs = part["Monthly CRP"].height / 252
+        g = {k: (v["equity"][-1] / v["equity"][0]) ** (1 / yrs) - 1 for k, v in part.items()}
+        print(f"  {lo} to {hi}: " + ", ".join(f"{k} {x:.1%}" for k, x in g.items()))
+
+
 def main(start: date, end: date, costs_bp=(0.7, 5, 10, 20)):
     market, sessions, launch = setup(start, end)
     rates = tbill()
@@ -80,7 +104,9 @@ def main(start: date, end: date, costs_bp=(0.7, 5, 10, 20)):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["validate"]:
+    if sys.argv[1:] == ["control"]:
+        control(date(1995, 1, 3), date(2016, 1, 1))
+    elif sys.argv[1:] == ["validate"]:
         main(date(2016, 1, 1), date(2025, 1, 1), costs_bp=(0.7,))
     else:
         main(date(1995, 1, 3), date(2016, 1, 1))

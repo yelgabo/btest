@@ -1,0 +1,21 @@
+1995-01-03 to 2016-01-01; ETFs replace stand-ins on: QQQ 1999-03-10, IWM 2000-05-26, DIA 1998-01-20, EFA 2001-08-27, EEM 2003-04-14, XLK 1998-12-22, XLF 1998-12-22, XLV 1998-12-22, XLE 1998-12-22, XLI 1998-12-22, XLY 1998-12-22, XLP 1998-12-22, XLU 1998-12-22, XLB 1998-12-22, XLRE 2015-10-08
+
+0.7 bp per dollar traded
+  Monthly CWMR  CAGR 11.57%  Sharpe 0.54  max DD -52.2%  turnover 14.1x
+  SPY           CAGR  9.33%  Sharpe 0.43  max DD -55.2%  turnover  0.0x
+  paired Sharpe vs SPY +0.11 (no rf), p 0.15
+
+5 bp per dollar traded
+  Monthly CWMR  CAGR 10.82%  Sharpe 0.50  max DD -52.6%  turnover 14.2x
+  SPY           CAGR  9.32%  Sharpe 0.43  max DD -55.2%  turnover  0.0x
+  paired Sharpe vs SPY +0.08 (no rf), p 0.32
+
+10 bp per dollar traded
+  Monthly CWMR  CAGR  9.95%  Sharpe 0.46  max DD -53.2%  turnover 14.3x
+  SPY           CAGR  9.32%  Sharpe 0.43  max DD -55.2%  turnover  0.0x
+  paired Sharpe vs SPY +0.04 (no rf), p 0.65
+
+20 bp per dollar traded
+  Monthly CWMR  CAGR  8.23%  Sharpe 0.38  max DD -54.2%  turnover 14.6x
+  SPY           CAGR  9.32%  Sharpe 0.43  max DD -55.1%  turnover  0.0x
+  paired Sharpe vs SPY -0.05 (no rf), p 0.55

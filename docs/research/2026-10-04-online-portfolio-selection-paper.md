@@ -390,6 +390,27 @@ points a year.
 - Run once. Whatever the outcome, the strategy and the data are not changed and rerun on this
   window.
 
+Result (`outputs/long_history.out`, 5,291 sessions): **pass.**
+
+| 1995-01-03 to 2015-12-31, 0.7 bp | Monthly CWMR | SPY |
+|---|---|---|
+| CAGR | 11.57% | 9.33% |
+| Sharpe (T-bill) | 0.54 | 0.43 |
+| Max drawdown | -52.2% | -55.2% |
+| Turnover | 14.1x | 0x |
+
+Paired Sharpe test against SPY: +0.11 (no rf), p 0.15. Costs: 10.8% at 5 bp, 10.0% at 10 bp,
+8.2% at 20 bp, so it falls behind SPY between 10 and 20 bp.
+
+Added after the run, as a check on the stand-ins (`long_history_run.py control`,
+`outputs/long_history_control.out`): monthly equal weight in the same 16 slots returned 9.76%,
+Sharpe 0.46. CWMR's lead over equal weight is about the same while the stand-ins dominate
+(1995-1998: 23.9% against 22.0%) as after the ETFs launch (1999-2015: 8.8% against 7.1%), so
+the stand-ins do not explain it. Against equal weight, the paired test gives p 0.33.
+
+Monthly CWMR beat SPY on CAGR and Sharpe in 1995-2015 as it did in 2016-2024, but failed the
+2025-2026 holdout. None of the three comparisons is statistically significant on its own.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
