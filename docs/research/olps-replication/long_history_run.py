@@ -81,6 +81,33 @@ def control(start: date, end: date):
         print(f"  {lo} to {hi}: " + ", ".join(f"{k} {x:.1%}" for k, x in g.items()))
 
 
+def continuous(start: date, end: date, split: date):
+    """One run over the whole span, so CWMR's state carries into the later years, reported
+    for each part."""
+    market, sessions, _ = setup(start, end)
+    rates = tbill()
+    cfg = PortfolioConfig(costs=PortfolioCosts(slippage_bps=0.7))
+    eqs = {}
+    for name, f in (("Monthly CWMR", "strategies/olps/cwmr_monthly.py"),
+                    ("SPY", "strategies/baseline/buy_hold.py")):
+        r = PortfolioEngine(market, sessions, cfg, rates=rates).run(
+            load_strategy_class(Path(f))(), start, end)
+        eqs[name] = r.equity
+        st = metrics.compute(r.equity, rates)
+        print(f"  {name:13} CAGR {st['cagr']:6.2%}  Sharpe {st['sharpe']:.2f}  "
+              f"max DD {st['max_drawdown']:6.1%}")
+    d, p = paired(eqs["Monthly CWMR"], eqs["SPY"])
+    print(f"  paired Sharpe vs SPY {d:+.2f} (no rf), p {p:.2f}")
+    for lo, hi in ((start, split), (split, end)):
+        out = []
+        for name, e in eqs.items():
+            part = e.filter((pl.col("date") >= lo) & (pl.col("date") < hi))
+            before = e.filter(pl.col("date") < lo)
+            base = before["equity"][-1] if before.height else part["equity"][0]
+            out.append(f"{name} {(part['equity'][-1] / base) ** (252 / part.height) - 1:.1%}")
+        print(f"  {lo} to {hi}: " + ", ".join(out))
+
+
 def main(start: date, end: date, costs_bp=(0.7, 5, 10, 20)):
     market, sessions, launch = setup(start, end)
     rates = tbill()
@@ -104,7 +131,9 @@ def main(start: date, end: date, costs_bp=(0.7, 5, 10, 20)):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["control"]:
+    if sys.argv[1:] == ["continuous"]:
+        continuous(date(1995, 1, 3), date(2025, 1, 1), date(2016, 1, 1))
+    elif sys.argv[1:] == ["control"]:
         control(date(1995, 1, 3), date(2016, 1, 1))
     elif sys.argv[1:] == ["validate"]:
         main(date(2016, 1, 1), date(2025, 1, 1), costs_bp=(0.7,))

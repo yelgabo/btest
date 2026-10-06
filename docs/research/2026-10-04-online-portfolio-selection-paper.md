@@ -408,6 +408,12 @@ the stand-ins do not explain it. Against equal weight, the paired test gives p 0
 Monthly CWMR beat SPY on CAGR and Sharpe in 1995-2015 as it did in 2016-2024, but failed the
 2025-2026 holdout. None of the three comparisons is statistically significant on its own.
 
+Run continuously from 1995 to 2024 instead of restarting in 2016 (`long_history_run.py
+continuous`, `outputs/long_history_continuous.out`), monthly CWMR returns 11.95% against SPY's
+10.82% (Sharpe 0.57 against 0.51, paired p 0.34). Its 2016-2024 part falls to 12.9% against
+SPY's 14.4%. Started fresh in 2016, it returned 18.3% over the same years, so the 2016-2024 lead
+that selected it depends on starting the algorithm in 2016.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
