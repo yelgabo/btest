@@ -115,7 +115,7 @@ def save(runs):
 
     import psycopg
 
-    from btest import config, db
+    from btest import config, db, lab
     from btest.runner import _git, benchmark_from_daily
     settings = config.load(need_alpaca=False)
     rates = tbill()
@@ -134,6 +134,12 @@ def save(runs):
             stats = metrics.compute(equity, rates) | metrics.trade_stats(r.fills, equity)
             bench = metrics.compute(equity.select("date", pl.col("benchmark").alias("equity")),
                                     rates)
+            # The lab version with identical code, so the runs page links to its editor.
+            version = conn.execute(
+                "SELECT v.id FROM lab.strategy_version v JOIN lab.strategy s "
+                "ON s.id = v.strategy_id WHERE v.sha256 = %s AND NOT s.archived "
+                "ORDER BY v.version DESC LIMIT 1", (lab.sha256(Path(path).read_text()),),
+            ).fetchone()
             run_id = db.save_run(conn, {
                 "strategy": f"longhist/{Path(path).name}:{cls.__name__}",
                 "strategy_sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
@@ -149,6 +155,7 @@ def save(runs):
                 "git_commit": commit, "git_dirty": dirty,
                 "metrics": stats, "benchmark_metrics": bench | {"name": "SPY"},
                 "duration_s": 0.0,
+                "strategy_version_id": version[0] if version else None,
             }, r.fills, equity)
             print(f"run {run_id}: {path} {start} to {end}, CAGR {stats['cagr']:.2%}, "
                   f"SPY {bench['cagr']:.2%}")
