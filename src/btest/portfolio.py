@@ -44,6 +44,8 @@ class PortfolioConfig:
     min_trade: float = 1.0
     benchmark: str = "SPY"
     timing: Timing = field(default_factory=Timing)
+    # "btest" (Alpaca bars from history_start) or "longhist" (btest.longhist, from 1995).
+    data: str = "btest"
 
     def to_dict(self) -> dict:
         return asdict(self)

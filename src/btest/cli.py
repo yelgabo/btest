@@ -93,6 +93,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("migrate", help="apply database migrations")
     sub.add_parser("coverage", help="refresh the bar summary the UI reads from Postgres")
+    sub.add_parser("longhist", help="download the 1995-onward stand-in series into Postgres")
     p_ing = sub.add_parser("ingest", help="backfill or update bars and corporate actions")
     p_ing.add_argument("symbols", nargs="*", help="defaults to btest.toml symbols")
     p_opt = sub.add_parser("ingest-options",
@@ -140,6 +141,8 @@ def main() -> None:
     p_run.add_argument("--no-cash-yield", action="store_true",
                        help="decide() strategies: idle cash earns nothing")
     p_run.add_argument("--benchmark", default="SPY", choices=["SPY", "60/40"])
+    p_run.add_argument("--data", default="btest", choices=["btest", "longhist"],
+                       help="decide() strategies: longhist runs on daily closes from 1995")
     p_run.add_argument("--start", required=True, help="UTC date or datetime")
     p_run.add_argument("--end", required=True, help="exclusive")
     p_run.add_argument("-p", "--param", type=_param, action="append", default=[],
@@ -195,6 +198,15 @@ def main() -> None:
         if args.cmd == "live":
             live_command(conn, settings, args)
             return
+        if args.cmd == "longhist":
+            from btest import longhist
+            from btest.ingest import sync_risk_free
+            rows = longhist.build(date.today())
+            longhist.store(conn, rows)
+            sync_risk_free(conn, longhist.START)
+            print(f"longhist: {rows.height} rows, {rows['symbol'].n_unique()} symbols, "
+                  f"{rows['date'].min()} to {rows['date'].max()}")
+            return
         if args.cmd == "coverage":
             for symbol in settings.symbols:
                 record_coverage(conn, settings.data_dir, symbol)
@@ -234,7 +246,8 @@ def main() -> None:
                 conn, settings.data_dir, args.strategy, dict(args.param), args.symbols,
                 _utc(args.start), _utc(args.end), run_config,
                 extra={"fractional": not args.no_fractional,
-                       "cash_yield": not args.no_cash_yield, "benchmark": args.benchmark}
+                       "cash_yield": not args.no_cash_yield, "benchmark": args.benchmark,
+                       "data": args.data}
                 | ({"cash": args.cash} if args.cash is not None else {}),
             )
             print_summary(run_id, stats, bench, stats["engine_s"],

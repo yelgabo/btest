@@ -36,6 +36,19 @@ A strategy is a Python file with one `btest.strategy.Strategy` subclass. Each ru
 the Postgres `runs` schema (params, git commit, fills, daily equity, metrics) and gets an HTML
 report under `data/reports/`.
 
+## Long history, 1995 on
+
+```sh
+uv run btest longhist                       # download the series into Postgres (about a minute)
+uv run btest run strategies/olps/cwmr_monthly.py --data longhist --start 1995-01-03 --end 2016-01-01
+```
+
+A second data source for `decide()` strategies: daily total-return closes for SPY, QQQ, IWM,
+DIA, EFA, EEM, the sector SPDRs and AGG, each ETF from its launch and a stand-in fund or index
+before it (`src/btest/longhist.py`). Decisions and fills use the close. Pick it per run with
+`--data longhist` or the Data menu in the lab. Design:
+`docs/superpowers/specs/2026-10-06-long-history-data.md`.
+
 ## Fast path, parity, sweeps
 
 ```sh

@@ -71,6 +71,8 @@ def run_backtest(conn: psycopg.Connection, data_dir: Path, strategy_path: Path, 
     if has_decide(cls):
         return run_portfolio(conn, data_dir, strategy_path, params, symbols, start, end,
                              portfolio_config(config, extra), label, strategy_version_id)
+    if (extra or {}).get("data", "btest") != "btest":
+        raise SystemExit("Long-history data is daily closes; it runs decide() strategies only.")
     strategy = cls(**params)
     tf = strategy_timeframe(cls)
     splits = {s: db.get_splits(conn, s) for s in symbols}
@@ -139,14 +141,20 @@ def benchmark_from_daily(frames: dict[str, pl.DataFrame], name: str, dates: pl.S
     return pl.DataFrame({"date": dates, "benchmark": values})
 
 
+DATA_SOURCES = ("btest", "longhist")
+
+
 def portfolio_config(config: Config, extra: dict | None = None):
     from btest.portfolio import PortfolioConfig, PortfolioCosts
     extra = extra or {}
     benchmark = extra.get("benchmark", "SPY")
     if benchmark not in ("SPY", "60/40"):
         raise SystemExit("benchmark must be SPY or 60/40")
+    if extra.get("data", "btest") not in DATA_SOURCES:
+        raise SystemExit(f"data must be one of {', '.join(DATA_SOURCES)}")
     return PortfolioConfig(
         cash=float(extra.get("cash", PortfolioConfig().cash)),
+        data=extra.get("data", "btest"),
         costs=PortfolioCosts(slippage_bps=config.costs.slippage_bps,
                              sec_fee_rate=config.costs.sec_fee_rate),
         fractional=bool(extra.get("fractional", True)),
@@ -171,25 +179,36 @@ def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path,
     if not universe:
         raise SystemExit(f"{cls.__name__} has no universe; set universe = [...] or pass symbols")
     first_day, last_day = start.date(), end.date()
-    # The full calendar, published a year ahead: the daily cache covers every bar and
-    # month_end / month_position see the sessions after a run's last day.
-    all_sessions = db.get_sessions(conn, date_cls(2000, 1, 1), date_cls(2100, 1, 1))
-    sessions = all_sessions.filter(pl.col("date") < last_day)
     need = list(dict.fromkeys(universe + list({"SPY": ["SPY"], "60/40": ["SPY", "AGG"]}
                                               [pconfig.benchmark])))
-    splits = {s: db.get_splits(conn, s) for s in need}
-    dividends = {s: db.get_dividends(conn, s) for s in need}
-    frames = {}
-    for s in need:
-        df = daily.load(data_dir, s, all_sessions, pconfig.timing, splits[s], dividends[s])
-        if df.is_empty():
-            raise SystemExit(f"no bars for {s}; run `btest ingest {s}`")
-        frames[s] = df.filter(pl.col("date") < last_day)
+    if pconfig.data == "longhist":
+        from btest import longhist
+        from btest.calendar import nyse_sessions
+        # market.session starts at history_start; this calendar also runs past the last day
+        # for month_end / month_position.
+        all_sessions = nyse_sessions(longhist.START, date_cls(last_day.year + 2, 1, 1))
+        sessions = all_sessions.filter(pl.col("date") < last_day)
+        splits, dividends = {}, {}
+        frames = longhist.frames(conn, need, last_day)
+    else:
+        # The full calendar, published a year ahead: the daily cache covers every bar and
+        # month_end / month_position see the sessions after a run's last day.
+        all_sessions = db.get_sessions(conn, date_cls(2000, 1, 1), date_cls(2100, 1, 1))
+        sessions = all_sessions.filter(pl.col("date") < last_day)
+        splits = {s: db.get_splits(conn, s) for s in need}
+        dividends = {s: db.get_dividends(conn, s) for s in need}
+        frames = {}
+        for s in need:
+            df = daily.load(data_dir, s, all_sessions, pconfig.timing, splits[s], dividends[s])
+            if df.is_empty():
+                raise SystemExit(f"no bars for {s}; run `btest ingest {s}`")
+            frames[s] = df.filter(pl.col("date") < last_day)
     starts = [frames[s]["date"].min() for s in universe]
     dates = [d for d in sessions["date"].to_list() if d >= min(starts)]
     market = Market(dates, {s: frames[s] for s in universe})
     engine = PortfolioEngine(market, all_sessions, pconfig, splits, dividends,
-                             db.get_rates(conn, "DTB3"), OptionBook(conn, end))
+                             db.get_rates(conn, "DTB3"),
+                             None if pconfig.data == "longhist" else OptionBook(conn, end))
     t0 = time.perf_counter()
     result = engine.run(strategy, first_day, last_day)
     duration = time.perf_counter() - t0

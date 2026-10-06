@@ -103,7 +103,7 @@ def main() -> None:
                         _utc(spec["start"]), _utc(spec["end"]), _config(spec["config"]),
                         label=label, strategy_version_id=job["strategy_version_id"],
                         extra={k: v for k, v in spec["config"].items()
-                               if k in ("cash", "fractional", "cash_yield", "benchmark")})
+                               if k in ("cash", "fractional", "cash_yield", "benchmark", "data")})
                     out = {"run_id": run_id}
                 else:
                     sweep_id, _ = run_sweep(

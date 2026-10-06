@@ -522,6 +522,8 @@ export async function labPage(id, ui) {
     function renderForm() {
         form.symbols = form.symbols || [typeof s.params.symbol === "string" && labConfig.symbols.includes(s.params.symbol) ? s.params.symbol : "SPY"];
         form.start = form.start || labConfig.history_start;
+        const longhist = () => s.has_decide && form.config?.data === "longhist";
+        const firstDay = () => longhist() ? labConfig.longhist.start : labConfig.history_start;
         form.end = form.end || labConfig.holdout_start;
         form.params = form.params || {};
         form.config = form.config || {};
@@ -534,7 +536,7 @@ export async function labPage(id, ui) {
                 form.spend_holdout = ev.target.checked; saveForm();
             }}), ` Use the holdout (data from ${holdoutAt}). Each look spends some of its value as a clean test.`);
         };
-        const date = key => h("input", {type: "date", value: form[key], min: labConfig.history_start,
+        const date = key => h("input", {type: "date", value: form[key], min: firstDay(),
                                          oninput: ev => { form[key] = ev.target.value; saveForm(); updHoldout(); }});
         const params = Object.entries(s.params);
         const flag = (k, label) => h("label", {class: "check"}, h("input", {type: "checkbox",
@@ -554,13 +556,26 @@ export async function labPage(id, ui) {
             ? h("div", {class: "fld"}, h("span", {}, "Decides"), h("div", {class: "muted", style: "margin:0"},
                 h("b", {style: "color:var(--ink)"}, {daily: "Every session", weekly: "Last session of each week",
                     month_end: "Last session of each month", month_start: "First session of each month"}[s.rebalance]),
-                " at 15:30 New York time on data through 15:14; orders fill at 15:45. Set by ",
+                longhist() ? " on each session's close; orders fill at that close. Set by "
+                           : " at 15:30 New York time on data through 15:14; orders fill at 15:45. Set by ",
                 h("code", {class: "num"}, `rebalance = "${s.rebalance}"`), "."))
             : h("div", {class: "fld"}, h("span", {}, "Bars"), h("div", {class: "muted", style: "margin:0"},
                 h("b", {class: "num", style: "color:var(--ink)"}, s.timeframe), " candles, set by ",
                 h("code", {class: "num"}, `timeframe = "${s.timeframe}"`), s.timeframe === "1m" ? " (the default)" : "", " in the code"));
+        const missing = s.has_decide ? s.universe.filter(x => !labConfig.longhist.symbols.includes(x)) : [];
+        const dataField = s.has_decide ? field("Data", h("select", {onchange: ev => {
+                form.config.data = ev.target.value;
+                if (ev.target.value !== "longhist" && form.start < labConfig.history_start) form.start = labConfig.history_start;
+                saveForm(); renderForm();
+            }},
+            h("option", {value: "btest", selected: !longhist()}, `btest bars, from ${labConfig.history_start}`),
+            h("option", {value: "longhist", selected: longhist(), disabled: missing.length > 0},
+              `Long history, from ${labConfig.longhist.start}`)),
+            missing.length ? `Long history has no ${missing.join(", ")}.`
+                : longhist() ? "Daily closes; each ETF from its launch, a stand-in fund or index before it." : null) : null;
         formEl.replaceChildren(
             symbolsField,
+            dataField,
             barsField,
             h("div", {class: "row2"}, field("From", date("start")), field("Until", date("end"))),
             holdoutRow,

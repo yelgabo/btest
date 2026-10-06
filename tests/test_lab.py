@@ -196,3 +196,17 @@ def test_worker_kills_a_job_over_its_time_limit(testdb, tmp_path, monkeypatch):
                     "params": {}, "config": {}}}
     out = run_child(job, tmp_path)
     assert out["error"] == "Stopped after 1 seconds, the limit for a run."
+
+
+def test_longhist_runs_decide_strategies_from_1995_on_its_own_symbols():
+    universe = ["SPY", "QQQ", "XLK"]
+    s = spec(start="1995-01-03", config={"data": "longhist"})
+    out = lab.validate_spec("run", s, SETTINGS, False, universe)
+    assert out["symbols"] == universe and out["config"]["data"] == "longhist"
+    assert out["start"] == "1995-01-03"
+    with pytest.raises(ValueError, match="Data starts 2016"):
+        lab.validate_spec("run", spec(start="1995-01-03"), SETTINGS, False, ["SPY"])
+    with pytest.raises(ValueError, match="TLT has no data"):
+        lab.validate_spec("run", s, SETTINGS, False, ["SPY", "TLT"])
+    with pytest.raises(ValueError, match="decide"):
+        lab.validate_spec("run", s, SETTINGS, False)

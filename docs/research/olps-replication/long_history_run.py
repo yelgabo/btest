@@ -150,8 +150,8 @@ def save(runs):
                 "config": cfg.to_dict() | {
                     "timeframe": "1D", "engine": "portfolio",
                     "rebalance": getattr(cls, "rebalance", "daily"),
-                    "data": "long_history.py: Yahoo adjusted closes, stand-in funds before each "
-                            "ETF's launch; decide and fill at the close"},
+                    # The same series btest.longhist loads, from this script's cached copy.
+                    "data": "longhist"},
                 "git_commit": commit, "git_dirty": dirty,
                 "metrics": stats, "benchmark_metrics": bench | {"name": "SPY"},
                 "duration_s": 0.0,

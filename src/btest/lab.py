@@ -11,6 +11,7 @@ from pathlib import Path
 import psycopg
 from psycopg.types.json import Jsonb
 
+from btest import longhist
 from btest.bars import TIMEFRAMES
 from btest.config import Settings
 from btest.portfolio import SCHEDULES
@@ -338,9 +339,17 @@ def validate_spec(kind: str, spec: dict, settings: Settings, has_signals: bool,
     else:
         symbols = [spec.get("symbol", "")]
     symbols = [s.upper() for s in symbols]
-    unknown = [s for s in symbols if s not in settings.symbols]
+    data = (spec.get("config") or {}).get("data", "btest")
+    if data not in ("btest", "longhist"):
+        raise ValueError("data must be btest or longhist.")
+    if data == "longhist" and (kind != "run" or not universe):
+        raise ValueError("Long-history data is daily closes; it runs decide() strategies only, "
+                         "not sweeps or on_bar() strategies.")
+    available = longhist.SYMBOLS if data == "longhist" else settings.symbols
+    first_day = longhist.START if data == "longhist" else settings.history_start
+    unknown = [s for s in symbols if s not in available]
     if not symbols or unknown:
-        raise ValueError(f"Symbols must come from {', '.join(settings.symbols)}"
+        raise ValueError(f"Symbols must come from {', '.join(available)}"
                          + (f"; {', '.join(unknown)} has no data." if unknown else "."))
     try:
         start, end = date.fromisoformat(spec["start"]), date.fromisoformat(spec["end"])
@@ -348,8 +357,8 @@ def validate_spec(kind: str, spec: dict, settings: Settings, has_signals: bool,
         raise ValueError("Start and end must be dates like 2016-01-01.") from None
     if start >= end:
         raise ValueError("Start must be before end.")
-    if start < settings.history_start:
-        raise ValueError(f"Data starts {settings.history_start}.")
+    if start < first_day:
+        raise ValueError(f"Data starts {first_day}.")
     if kind == "run":
         if end > settings.holdout_start and not spec.get("spend_holdout"):
             raise ValueError(f"This window reaches the holdout (from {settings.holdout_start}). "
@@ -390,8 +399,10 @@ def validate_spec(kind: str, spec: dict, settings: Settings, has_signals: bool,
             if raw_config["benchmark"] not in BENCHMARKS:
                 raise ValueError(f"benchmark must be one of {', '.join(BENCHMARKS)}.")
             costs["benchmark"] = raw_config["benchmark"]
+        if data != "btest":
+            costs["data"] = data
     for k, v in costs.items():
-        if k in FLAG_KEYS or k == "benchmark":
+        if k in FLAG_KEYS or k in ("benchmark", "data"):
             continue
         if k == "allow_short":
             costs[k] = bool(v)

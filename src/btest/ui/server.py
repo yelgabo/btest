@@ -16,7 +16,7 @@ from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Re
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from btest import bars, config, db, lab
+from btest import bars, config, db, lab, longhist
 from btest.engine import Costs
 
 STATIC = resources.files("btest.ui") / "static"
@@ -194,6 +194,7 @@ def create_app() -> Starlette:
         return JSON({
             "symbols": settings.symbols, "history_start": settings.history_start,
             "holdout_start": settings.holdout_start, "template": lab.TEMPLATE,
+            "longhist": {"start": longhist.START, "symbols": longhist.SYMBOLS},
             "defaults": {"cash": 100_000.0, "portfolio_cash": 20_000.0,
                          "slippage_bps": Costs().slippage_bps,
                          "fractional": True, "cash_yield": True, "benchmark": "SPY",
