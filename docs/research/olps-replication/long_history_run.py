@@ -108,6 +108,52 @@ def continuous(start: date, end: date, split: date):
         print(f"  {lo} to {hi}: " + ", ".join(out))
 
 
+def save(runs):
+    """Store runs in runs.run so they show on the runs page, marked as long-history data."""
+    import hashlib
+    from datetime import UTC, datetime, time as dtime
+
+    import psycopg
+
+    from btest import config, db
+    from btest.runner import _git, benchmark_from_daily
+    settings = config.load(need_alpaca=False)
+    rates = tbill()
+    cfg = PortfolioConfig(costs=PortfolioCosts(slippage_bps=0.7))
+    commit, dirty = _git()
+    with psycopg.connect(settings.database_url) as conn:
+        for path, start, end in runs:
+            market, sessions, _ = setup(start, end)
+            cls = load_strategy_class(Path(path))
+            strategy = cls()
+            r = PortfolioEngine(market, sessions, cfg, rates=rates).run(strategy, start, end)
+            frames = {"SPY": pl.DataFrame({"date": market.dates,
+                                           "close": market.full["close"][:, market.col["SPY"]]})}
+            equity = r.equity.join(benchmark_from_daily(frames, "SPY", r.equity["date"], cfg.cash),
+                                   on="date", how="left")
+            stats = metrics.compute(equity, rates) | metrics.trade_stats(r.fills, equity)
+            bench = metrics.compute(equity.select("date", pl.col("benchmark").alias("equity")),
+                                    rates)
+            run_id = db.save_run(conn, {
+                "strategy": f"longhist/{Path(path).name}:{cls.__name__}",
+                "strategy_sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+                "params": strategy.params,
+                "symbols": list(cls.universe),
+                "start_ts": datetime.combine(start, dtime(), UTC),
+                "end_ts": datetime.combine(end, dtime(), UTC),
+                "config": cfg.to_dict() | {
+                    "timeframe": "1D", "engine": "portfolio",
+                    "rebalance": getattr(cls, "rebalance", "daily"),
+                    "data": "long_history.py: Yahoo adjusted closes, stand-in funds before each "
+                            "ETF's launch; decide and fill at the close"},
+                "git_commit": commit, "git_dirty": dirty,
+                "metrics": stats, "benchmark_metrics": bench | {"name": "SPY"},
+                "duration_s": 0.0,
+            }, r.fills, equity)
+            print(f"run {run_id}: {path} {start} to {end}, CAGR {stats['cagr']:.2%}, "
+                  f"SPY {bench['cagr']:.2%}")
+
+
 def main(start: date, end: date, costs_bp=(0.7, 5, 10, 20)):
     market, sessions, launch = setup(start, end)
     rates = tbill()
@@ -131,7 +177,11 @@ def main(start: date, end: date, costs_bp=(0.7, 5, 10, 20)):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["continuous"]:
+    if sys.argv[1:] == ["save"]:
+        save([("strategies/olps/cwmr_monthly.py", date(1995, 1, 3), date(2016, 1, 1)),
+              ("strategies/olps/crp.py", date(1995, 1, 3), date(2016, 1, 1)),
+              ("strategies/olps/cwmr_monthly.py", date(1995, 1, 3), date(2025, 1, 1))])
+    elif sys.argv[1:] == ["continuous"]:
         continuous(date(1995, 1, 3), date(2025, 1, 1), date(2016, 1, 1))
     elif sys.argv[1:] == ["control"]:
         control(date(1995, 1, 3), date(2016, 1, 1))
