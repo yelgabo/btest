@@ -263,3 +263,16 @@ def test_month_end_on_a_runs_last_day_uses_the_real_calendar():
     # The run stops on Jan 9, but January has sessions after it.
     run(Watch(), {"A": frame([10.0] * 6)}, n=6)
     assert seen[-1][1] > 1
+
+
+def test_buy_and_hold_reinvests_dividends():
+    from btest.config import ROOT
+    from btest.runner import load_strategy_class
+    from btest.sources.base import Dividend
+    spy = frame([100.0] * 6)
+    e = PortfolioEngine(Market(DATES[:6], {"SPY": spy}), SESSIONS, FREE,
+                        dividends={"SPY": [Dividend(DATES[2], 1.0, False, "d")]})
+    res = e.run(load_strategy_class(ROOT / "strategies/baseline/buy_hold.py")(), DATES[0], DATES[6])
+    assert e.account.cash == pytest.approx(0.0, abs=1e-6)
+    assert e.account.qty("SPY") == pytest.approx(101.0)
+    assert res.equity["equity"][-1] == pytest.approx(10_100.0)

@@ -318,11 +318,11 @@ Result (btest run 73, lab job 77, 438 sessions): **fail.**
 
 Paired Sharpe test against SPY: -0.08 (no rf), p 0.77. It beat SPY in 8 of 21 months. Turnover
 16x a year. Out of sample, monthly CWMR matched SPY's return with slightly more risk; the
-2016-2024 lead (18.3% against 13.8%) did not carry over.
+2016-2024 lead (18.3% against SPY's 14.5%) did not carry over.
 
 ## Weekly trading instead of monthly, 2016-2024 (`weekly.py`)
 
-Run after the monthly holdout failed. Same 16 ETFs, btest timing, 0.7 bp, SPY 13.8% (Sharpe
+Run after the monthly holdout failed. Same 16 ETFs, btest timing, 0.7 bp, SPY 14.5% (Sharpe
 0.73). A learns from daily prices and trades on each week's last session; B learns from weekly
 bars (each ISO week's last close) and trades on the same day. Full table in
 `outputs/weekly.out`.
@@ -330,13 +330,13 @@ bars (each ISO week's last close) and trades on the same day. Full table in
 | CWMR (paper) | CAGR | Sharpe (T-bill) | Turnover | Paired Sharpe vs SPY, p |
 |---|---|---|---|---|
 | Daily, as published | 13.8% | 0.65 | 349x | |
-| A: trade weekly | 14.3% | 0.68 | 78x | -0.07, 0.49 |
-| B: weekly bars | 17.6% | 0.81 | 73x | +0.06, 0.68 |
-| Monthly, for reference | 18.3% | 0.87 | 18x | +0.12, 0.27 |
+| A: trade weekly | 14.3% | 0.68 | 78x | -0.07, 0.54 |
+| B: weekly bars | 17.6% | 0.81 | 73x | +0.06, 0.64 |
+| Monthly, for reference | 18.3% | 0.87 | 18x | +0.13, 0.24 |
 
 B's lead depends on where the weeks end. With 5-session bars at each of the 5 possible offsets,
 B returns 9.4% to 13.9% (Sharpe 0.46 to 0.65), and none beats SPY on CAGR and Sharpe. A beats
-SPY on both at 1 of 5 offsets. Monthly A beat SPY at 18 of 21 offsets. Weekly trading quadruples
+SPY on both at 1 of 5 offsets. Monthly A beat SPY at 15 of 21 offsets. Weekly trading quadruples
 turnover against monthly and does not hold up in-sample, so it was not run on the holdout,
 which the monthly test has already used.
 
@@ -367,11 +367,8 @@ The Fidelity Select funds are actively managed, so they track their sectors loos
 
 **Pipeline check** (`long_history_run.py validate`, `outputs/long_history_validate.out`). On
 2016-2024, where every slot is the ETF, this data gives monthly CWMR 18.40%, Sharpe 0.87,
-turnover 17.8x; btest gave 18.3%, 0.87, 18x. SPY differs: 14.58% here against btest's 13.8%,
-because btest's buy-and-hold baseline keeps SPY's dividends as cash (8.6% of the account by the
-end of 2024) instead of reinvesting them. SPY's total return is the right benchmark, so this
-test uses it; the earlier comparisons with btest's SPY overstate CWMR's lead by about 0.8
-points a year.
+turnover 17.8x; btest gave 18.3%, 0.87, 18x. SPY gives 14.58% here, matching the benchmark
+column of btest runs (14.5%).
 
 **Test.**
 
@@ -426,6 +423,15 @@ Monthly CWMR beat SPY on CAGR and Sharpe in 1995-2015 as it did in 2016-2024, bu
 
 ## Corrections
 
+- The 2016-2024 studies (`monthly.py`, `monthly_robustness.py`, `weekly.py`) took SPY from
+  btest's buy-and-hold strategy, which kept dividends as cash instead of reinvesting them
+  (8.6% of the account by the end of 2024). That understated SPY at 13.8% a year against its
+  14.5% total return. The strategy now reinvests (lab `baseline/buy_hold` v2), the scripts were
+  rerun, and the figures above are corrected: monthly CWMR beats SPY at 15 of 21 trading days,
+  not 18, and its paired p is 0.24, not 0.27. The holdout and the main strategy table used the
+  run's benchmark column, which was already a total return, so they are unchanged. The
+  docstring of `strategies/olps/cwmr_monthly.py` keeps the old figures, because the
+  pre-registered holdout test names that code.
 - Draft 1 said the paper's data was unavailable and that its headline results "do not survive
   realistic testing". The data is in the authors' repository, the results reproduce, and in the
   paper's own sample they survive costs and delay in return terms.
