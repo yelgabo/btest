@@ -466,6 +466,19 @@ seen): 13.32% against SPY's 8.09%, Sharpe 0.60 against 0.40, max drawdown -48.2%
 turnover 76x. It led SPY in each part: 10.5% against 3.5% in 1999-2007, 12.7% against 6.5% in
 2008-2015, and 16.9% against 14.4% in 2016-2024.
 
+Does it depend on the week ending on Friday? (`weekly_offsets_longhist.py`,
+`outputs/weekly_offsets_longhist.out`.) The same strategy with weeks of 5 sessions ending on each
+of the 5 possible days, each run once over 1999-2024 at 0.7 bp:
+
+- 1999-2015: all six versions beat SPY (4.9%) and equal weight (6.6%), at 10.0% to 14.0%.
+- 2016-2024: SPY returned 14.4%. The calendar version (16.8%) and one offset (16.0%) beat it; three
+  returned 13.8% to 14.1%, and one 11.7%. Only those two beat SPY's Sharpe of 0.73.
+- 1999-2024: all six beat SPY (8.1%) and equal weight (8.4%), at 11.4% to 13.9%.
+
+So the lead before 2016 does not depend on the day the week ends. After 2016 the versions roughly
+tie SPY, and the calendar version's lead there is the best of six. Every version trades 71x to
+76x its account a year, so the cost question above applies to all of them.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
