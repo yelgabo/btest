@@ -29,7 +29,7 @@ Goal: run portfolio strategies from the website on 1995 onward.
 The first version (commit cf7de98) spliced stand-in funds and indexes under ETF names before
 each launch, as the 1995-2015 research test had. Replaced: a symbol is only ever itself. The
 research test in `docs/research/olps-replication/long_history.py` keeps its stand-in data as
-the record of what was pre-registered; runs 74-77 used it.
+the record of what was pre-registered.
 
 ## Checks
 
