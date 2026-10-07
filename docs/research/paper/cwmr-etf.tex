@@ -398,13 +398,12 @@ independent review caught them. Single backtests did not.
 
 \section*{Data and code availability}
 
-The original paper's code and data are public \citep{lahanis2025}; we used commit
-\texttt{7c2e88d}. Daily ETF prices are Yahoo Finance adjusted closes and opens; minute prices
-from 2016 are Alpaca SIP bars; the risk-free rate is the 3-month Treasury bill series DTB3 from
-FRED. All runs use the authors' CWMR parameters ($\epsilon = 0.89$, $\theta = 0.92$,
-$\eta = 0.93$), \$20,000 starting capital and fractional shares. The backtest code, scripts,
-run outputs and the timestamped pre-registration records are available from the author on
-request.
+Code that reproduces Section~\ref{sec:repro} and Tables~\ref{tab:paper}, \ref{tab:prereg},
+\ref{tab:offsets} and~\ref{tab:costs} from public data is at
+\url{https://github.com/yelgabo/cwmr-etf-replication}. It uses the original authors' public code
+and data \citep{lahanis2025}, Yahoo Finance daily prices and the 3-month Treasury bill rate from
+FRED. Sections~\ref{sec:daily} and~\ref{sec:holdout} used minute bars from Alpaca, which require
+an account; that code is available from the author on request.
 
 \section*{Acknowledgments}
 
