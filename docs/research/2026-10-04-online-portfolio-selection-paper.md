@@ -479,6 +479,10 @@ So the lead before 2016 does not depend on the day the week ends. After 2016 the
 tie SPY, and the calendar version's lead there is the best of six. Every version trades 71x to
 76x its account a year, so the cost question above applies to all of them.
 
+At 10 bp per dollar traded (website run 83), the calendar version returns 5.58% a year over
+1999-2024 against SPY's 8.09% (Sharpe 0.27 against 0.40): 3.8% against 4.9% in 1999-2015 and
+9.1% against 14.4% in 2016-2024. $10,000 grows to $41,023 against SPY's $75,547.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
