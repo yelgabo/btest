@@ -414,6 +414,12 @@ continuous`, `outputs/long_history_continuous.out`, run 76), monthly CWMR return
 SPY's 14.4%. Started fresh in 2016, it returned 18.3% over the same years, so the 2016-2024 lead
 that selected it depends on starting the algorithm in 2016.
 
+Without stand-ins (btest long-history data, each ETF only from its launch; runs 78 and 79 from
+the website), monthly CWMR returns 7.32% over 1995-2015 against SPY's 9.33%, and 8.60% over
+1995-2024 against 10.82%. Until DIA launched it had one symbol and held cash: its first trade
+was 1998-01-30, by which time SPY had more than doubled. From 1999-01-04 to 2015-12-31, with the
+sector ETFs trading, it grew 2.94x against SPY's 2.25x (6.5% a year against 4.9%).
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
