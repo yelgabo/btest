@@ -79,3 +79,13 @@ concentrated in 1-2 ETFs most weeks; after 2016 it roughly ties SPY.
 
 Unverified: historical ETF spreads for 1999-2008 (no source found), the tax estimate, and the
 reviewer's configuration count.
+
+## After correction (finding 1)
+
+btest's long history now fills at the next session's open (commit a3966b3, deployed). Rechecked
+from the website (runs 87-89) and `weekly_offsets_longhist.out`: weekly bars returns 9.82% over
+1999-2015 (SPY 4.90%, equal weight 6.61%; paired p 0.11 against SPY, 0.33 against equal weight),
+12.10% over 1999-2024 (SPY 8.09%), and 4.46% at 10 bp. Findings 2-10 stand: the edge disappears
+between 5 and 10 bp, commissions are not modelled, holdings are concentrated, and after 2016 the
+six versions roughly tie SPY. The verdict is unchanged: not a tradable edge, and no longer
+statistically distinguishable from SPY or equal weight in the pre-registered window.

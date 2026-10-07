@@ -422,6 +422,10 @@ sector ETFs trading, it grew 2.94x against SPY's 2.25x (6.5% a year against 4.9%
 
 ## CWMR on monthly and weekly bars, 1999-2015 (pre-registered)
 
+All long-history results in this section and the ETF-only paragraph above were first computed
+with fills at the decision's own close; the rerun with next-open fills at the end of this section
+replaces them.
+
 Written and committed before running. Variant A above learns from daily moves but holds for a
 month. These variants judge winners and losers over the same period they hold: B learns from
 month-end (or week-end) closes and trades at each month (or week) end. In 2016-2024, monthly
@@ -490,6 +494,29 @@ over 2016-2024 (SPY 14.4%) and 9.76% over 1999-2024 (SPY 8.09%). Costs break eve
 about 7 bp; the backtest charges no commissions (243-315 fills a year in 1999-2001); and the
 portfolio holds a median of 2 ETFs. The result is not evidence of a tradable edge.
 
+**Rerun with next-open fills.** btest's long history now fills each order at the next session's
+open (commit a3966b3). Every long-history run was rerun from the website (runs 84-89 replace
+78-83) and the scripts' outputs regenerated (`bars_1999.out`, `weekly_offsets_longhist.out`).
+At 0.7 bp unless stated:
+
+| Run | Strategy, window | Same-close fills | Next-open fills | SPY |
+|---|---|---|---|---|
+| 84 | Monthly CWMR (daily signal), 1995-2015 | 7.32% | 6.79% | 9.33% |
+| 85 | Monthly CWMR (daily signal), 1995-2024 | 8.60% | 8.09% | 10.82% |
+| 86 | Monthly bars, 1999-2015 (pre-registered) | 8.47% | 8.90% | 4.90% |
+| 87 | Weekly bars, 1999-2015 (pre-registered) | 11.50% | 9.82% | 4.90% |
+| 88 | Weekly bars, 1999-2024 | 13.32% | 12.10% | 8.09% |
+| 89 | Weekly bars, 1999-2024, 10 bp | 5.58% | 4.46% | 8.09% |
+
+Both pre-registered variants still beat SPY on CAGR and Sharpe over 1999-2015 (Sharpe 0.40 and
+0.45 against 0.25), and equal weight in the same ETFs still returns 6.61%. Paired Sharpe tests
+for weekly bars: against SPY p 0.11 (was 0.02), against equal weight p 0.33 (was 0.09); for
+monthly bars, p 0.17 and 0.52. Weekly bars falls below SPY between 5 bp (6.24% over 1999-2015) and
+10 bp (2.23%). Across the six week-end versions, 1999-2015 returns 7.8% to 13.4% (all above SPY
+and equal weight) and 2016-2024 returns 11.6% to 16.4% against SPY's 14.4%, with only the calendar
+version and one offset above SPY. Weekly bars over 1999-2024 at next-open fills: 9.9% in
+1999-2015 and 16.4% in 2016-2024.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
@@ -504,6 +531,12 @@ portfolio holds a median of 2 ETFs. The result is not evidence of a tradable edg
    differ from their sources.
 
 ## Corrections
+
+- Long-history runs before commit a3966b3 (runs 78-83, the stand-in research test in
+  `long_history.py`, and the first outputs of `bars_1999.py` and `weekly_offsets_longhist.py`)
+  filled orders at the close their decision had already seen. Fills are now at the next
+  session's open; the long-history results were rerun (runs 84-89). The stand-in test keeps its
+  original same-close numbers as the record of what was pre-registered.
 
 - The 2016-2024 studies (`monthly.py`, `monthly_robustness.py`, `weekly.py`) took SPY from
   btest's buy-and-hold strategy, which kept dividends as cash instead of reinvesting them
