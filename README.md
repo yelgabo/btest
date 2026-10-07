@@ -43,10 +43,10 @@ uv run btest longhist                       # download the series into Postgres 
 uv run btest run strategies/olps/cwmr_monthly.py --data longhist --start 1995-01-03 --end 2016-01-01
 ```
 
-A second data source for `decide()` strategies: daily total-return closes for SPY, QQQ, IWM,
-DIA, EFA, EEM, the sector SPDRs and AGG, each ETF from its launch and a stand-in fund or index
-before it (`src/btest/longhist.py`). Decisions and fills use the close. Pick it per run with
-`--data longhist` or the Data menu in the lab. Design:
+A second data source for `decide()` strategies: Yahoo's daily adjusted closes for the symbols in
+`btest.toml`, from 1995 or each symbol's first trading day (QQQ joins on 1999-03-10). Day bars,
+so it is kept apart from the minute-bar store; decisions and fills use the close. Pick it per
+run with `--data longhist` or the Data menu in the lab. Design:
 `docs/superpowers/specs/2026-10-06-long-history-data.md`.
 
 ## Fast path, parity, sweeps

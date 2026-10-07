@@ -562,17 +562,14 @@ export async function labPage(id, ui) {
             : h("div", {class: "fld"}, h("span", {}, "Bars"), h("div", {class: "muted", style: "margin:0"},
                 h("b", {class: "num", style: "color:var(--ink)"}, s.timeframe), " candles, set by ",
                 h("code", {class: "num"}, `timeframe = "${s.timeframe}"`), s.timeframe === "1m" ? " (the default)" : "", " in the code"));
-        const missing = s.has_decide ? s.universe.filter(x => !labConfig.longhist.symbols.includes(x)) : [];
         const dataField = s.has_decide ? field("Data", h("select", {onchange: ev => {
                 form.config.data = ev.target.value;
                 if (ev.target.value !== "longhist" && form.start < labConfig.history_start) form.start = labConfig.history_start;
                 saveForm(); renderForm();
             }},
             h("option", {value: "btest", selected: !longhist()}, `btest bars, from ${labConfig.history_start}`),
-            h("option", {value: "longhist", selected: longhist(), disabled: missing.length > 0},
-              `Long history, from ${labConfig.longhist.start}`)),
-            missing.length ? `Long history has no ${missing.join(", ")}.`
-                : longhist() ? "Daily closes; each ETF from its launch, a stand-in fund or index before it." : null) : null;
+            h("option", {value: "longhist", selected: longhist()}, `Long history, from ${labConfig.longhist.start}`)),
+            longhist() ? "Yahoo day bars; each symbol joins on its first trading day." : null) : null;
         formEl.replaceChildren(
             symbolsField,
             dataField,

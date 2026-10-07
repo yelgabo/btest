@@ -1,30 +1,22 @@
 from datetime import date
 
-import numpy as np
 import polars as pl
 
 from btest import longhist
-from btest.calendar import nyse_sessions
 
 
-def series(days, rets):
-    return pl.DataFrame({"date": days, "price": 50 * np.cumprod(1 + np.asarray(rets))})
-
-
-def test_build_splices_the_stand_in_before_launch_and_the_etf_after(monkeypatch):
-    days = nyse_sessions(longhist.START, date(1995, 3, 1))["date"].to_list()
-    launch = 20
-    fund = np.linspace(-0.01, 0.01, len(days))
-    etf = np.full(len(days), 0.002)
-    prices = {"FUND": series(days, fund), "ETF": series(days[launch:], etf[launch:])}
-    monkeypatch.setattr(longhist, "yahoo", lambda s: prices[s])
-    monkeypatch.setattr(longhist, "STAND_INS", {"ETF": "FUND"})
-    rows = longhist.build(date(1995, 3, 2))
-    close = rows["close"].to_numpy()
-    got = close[1:] / close[:-1] - 1
-    assert np.allclose(got[:launch], fund[1:launch + 1])
-    assert np.allclose(got[launch:], etf[launch + 1:])
-    assert rows["source"].to_list() == ["FUND"] * (launch + 1) + ["ETF"] * (len(days) - launch - 1)
+def test_build_starts_each_symbol_on_its_first_day_and_fills_gaps(monkeypatch):
+    px = {"OLD": pl.DataFrame({"date": [date(1995, 1, 3), date(1995, 1, 5)],
+                               "close": [10.0, 11.0]}),
+          "NEW": pl.DataFrame({"date": [date(1995, 1, 5), date(1995, 1, 6)],
+                               "close": [20.0, 21.0]})}
+    monkeypatch.setattr(longhist, "yahoo", lambda s: px[s])
+    rows = longhist.build(["OLD", "NEW"], date(1995, 1, 9))
+    old = rows.filter(pl.col("symbol") == "OLD")
+    assert old["date"].to_list() == [date(1995, 1, d) for d in (3, 4, 5, 6)]
+    assert old["close"].to_list() == [10.0, 10.0, 11.0, 11.0]
+    new = rows.filter(pl.col("symbol") == "NEW")
+    assert new["date"].to_list() == [date(1995, 1, 5), date(1995, 1, 6)]
 
 
 class FakeConn:

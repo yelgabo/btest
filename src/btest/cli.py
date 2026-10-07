@@ -93,7 +93,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("migrate", help="apply database migrations")
     sub.add_parser("coverage", help="refresh the bar summary the UI reads from Postgres")
-    sub.add_parser("longhist", help="download the 1995-onward stand-in series into Postgres")
+    sub.add_parser("longhist", help="download Yahoo day bars from 1995 for btest.toml symbols into Postgres")
     p_ing = sub.add_parser("ingest", help="backfill or update bars and corporate actions")
     p_ing.add_argument("symbols", nargs="*", help="defaults to btest.toml symbols")
     p_opt = sub.add_parser("ingest-options",
@@ -201,7 +201,7 @@ def main() -> None:
         if args.cmd == "longhist":
             from btest import longhist
             from btest.ingest import sync_risk_free
-            rows = longhist.build(date.today())
+            rows = longhist.build(settings.symbols, date.today())
             longhist.store(conn, rows)
             sync_risk_free(conn, longhist.START)
             print(f"longhist: {rows.height} rows, {rows['symbol'].n_unique()} symbols, "

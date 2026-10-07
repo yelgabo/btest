@@ -199,13 +199,13 @@ def test_worker_kills_a_job_over_its_time_limit(testdb, tmp_path, monkeypatch):
 
 
 def test_longhist_runs_decide_strategies_from_1995_on_its_own_symbols():
-    universe = ["SPY", "QQQ", "XLK"]
+    universe = ["SPY", "META"]
     s = spec(start="1995-01-03", config={"data": "longhist"})
     out = lab.validate_spec("run", s, SETTINGS, False, universe)
     assert out["symbols"] == universe and out["config"]["data"] == "longhist"
     assert out["start"] == "1995-01-03"
     with pytest.raises(ValueError, match="Data starts 2016"):
-        lab.validate_spec("run", spec(start="1995-01-03"), SETTINGS, False, ["SPY"])
+        lab.validate_spec("run", spec(start="1995-01-03"), SETTINGS, False, universe)
     with pytest.raises(ValueError, match="TLT has no data"):
         lab.validate_spec("run", s, SETTINGS, False, ["SPY", "TLT"])
     with pytest.raises(ValueError, match="decide"):

@@ -345,7 +345,7 @@ def validate_spec(kind: str, spec: dict, settings: Settings, has_signals: bool,
     if data == "longhist" and (kind != "run" or not universe):
         raise ValueError("Long-history data is daily closes; it runs decide() strategies only, "
                          "not sweeps or on_bar() strategies.")
-    available = longhist.SYMBOLS if data == "longhist" else settings.symbols
+    available = settings.symbols
     first_day = longhist.START if data == "longhist" else settings.history_start
     unknown = [s for s in symbols if s not in available]
     if not symbols or unknown:
