@@ -396,23 +396,19 @@ for this family of strategies on liquid US-listed ETFs. The three errors in
 Section~\ref{sec:errors} each made a strategy look better than it was. Pre-registration plus an
 independent review caught them. Single backtests did not.
 
-\section*{Reproducibility}
+\section*{Data and code availability}
 
-Code and outputs are in the btest repository. The research log is
-\path{docs/research/2026-10-04-online-portfolio-selection-paper.md}, and the review with every
-finding and its disposition is \path{docs/analysis/2026-10-06-weekly-cwmr-review.md}. Scripts
-and their saved outputs are in \path{docs/research/olps-replication/}. The runs behind
-Tables~\ref{tab:prereg} and~\ref{tab:costs} are btest runs 86 to 89, made from the lab with the
-strategy files \path{strategies/olps/cwmr_*.py}. Pre-registrations are git commits
-\texttt{7f9a8b0} (holdout), \texttt{d9a912d} (1995--2015, stand-in data) and \texttt{97b0d4a}
-(1999--2015 bars). The long-history data loader is \path{src/btest/longhist.py}
-(\texttt{btest longhist}).
+The original paper's code and data are public \citep{lahanis2025}; we used commit
+\texttt{7c2e88d}. Daily ETF prices are Yahoo Finance adjusted closes and opens; minute prices
+from 2016 are Alpaca SIP bars; the risk-free rate is the 3-month Treasury bill series DTB3 from
+FRED. All runs use the authors' CWMR parameters ($\epsilon = 0.89$, $\theta = 0.92$,
+$\eta = 0.93$), \$20,000 starting capital and fractional shares. The backtest code, scripts,
+run outputs and the timestamped pre-registration records are available from the author on
+request.
 
 \section*{Acknowledgments}
 
-Analysis code, backtests, the adversarial review and drafts of this paper were produced with
-Claude (Anthropic) under the author's direction. The author chose the questions, the
-pre-registration rules and the corrections.
+The author used Claude (Anthropic) to write analysis code and edit the manuscript.
 
 \bibliographystyle{plainnat}
 \bibliography{refs}
