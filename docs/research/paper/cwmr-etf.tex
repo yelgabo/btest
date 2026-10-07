@@ -192,10 +192,11 @@ the 3-month Treasury bill rate.
 
 Each confirmatory test was written into the research log and committed to git before it ran.
 The commit names the strategy version, window, settings and pass criterion, and states that the
-strategy will not be changed and rerun on that window. Each commit precedes its run; the
-holdout's commit, for example, is 28 seconds older than the run's database record. These
-records are in the author's private repository, and git timestamps come from the author's
-machine, so readers cannot verify them independently. We kept 2025-01-01 onward as a holdout.
+strategy will not be changed and rerun on that window. The texts of the three plans are in the
+replication repository, each with its commit hash and time, copied word for word. Git commit
+times come from the author's machine. For the holdout test, GitHub's own record shows the plan
+arriving 26 seconds before the run was created. For the other two plans the order rests on the
+repository history, which can be shown to referees on request. We kept 2025-01-01 onward as a holdout.
 Two unrelated single-ETF strategies had been run on it before this study; no portfolio
 selection strategy had, and we ran one test on it.
 
@@ -387,7 +388,13 @@ The break-even against SPY is about 6--7~bp over 1999--2015 and about 5--6~bp ov
 Against equal weight it is lower: over 1999--2015 weekly bars returns 7.06\% at 4~bp and 6.65\%
 at 4.5~bp, against equal weight's 6.61\%. Our spread measurements cover 2016--2024 at 15:45; we
 have none for these ETFs before 2016 or at the open, so we cannot say whether costs in
-1999--2015 were below 4.5~bp. Over 1999--2001 the strategy also made 243 to 315 trades a year.
+1999--2015 were below 4.5~bp. Estimating them from daily prices does not work at this scale. We
+applied the efficient estimator of \citet{ardia2024}, which its authors show improves on the earlier
+high--low estimators of \citet{corwin2012} and \citet{abdi2017}, to each ETF's daily open, high,
+low and close in each year. On 2016--2024, where half-spreads were measured at 0.17 to 1.68~bp,
+its yearly estimates range from $-34$ to $+74$~bp and its medians by ETF from $-11$ to
+$+17$~bp; for SPY it gives 11.9~bp against a measured 0.17~bp. Daily price noise swamps
+spreads this small, so the estimates for earlier years cannot be used. Over 1999--2001 the strategy also made 243 to 315 trades a year.
 At the 1999 average online commission of about \$16 a trade, that is a fifth to a quarter of a
 \$20,000 account each year.
 
@@ -442,7 +449,8 @@ SPY.
 
 Before calling it an edge we would need:
 \begin{enumerate}
-  \item measured or estimated spreads for these ETFs before 2016, to replace the flat cost;
+  \item spreads for these ETFs before 2016 measured from historical quote data, to replace the
+        flat cost;
   \item a pre-registered test against equal weight, not SPY, on data no variant has touched. The
         2025 holdout has been used once; data from 2027 on would be clean;
   \item results after commissions for a stated account size, and after tax for taxable
@@ -462,8 +470,9 @@ statistically significant edge for this CWMR variant over holding the same ETFs.
 \section*{Data and code availability}
 
 Code that reproduces Section~\ref{sec:repro}, Tables~\ref{tab:paper} and
-\ref{tab:prereg}--\ref{tab:costs}, the one-session-late result and the autocorrelations from
-public data is at
+\ref{tab:prereg}--\ref{tab:costs}, the one-session-late result, the spread estimates and the
+autocorrelations from public data, together with the texts of the three pre-registered plans,
+is at
 \begin{center}\url{https://github.com/yelgabo/cwmr-etf-replication}\end{center}
 It uses the original authors' public code
 and data \citep{lahanis2025}, Yahoo Finance daily prices and the 3-month Treasury bill rate from
