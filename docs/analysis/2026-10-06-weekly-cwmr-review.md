@@ -82,6 +82,10 @@ reviewer's configuration count.
 
 ## After correction (finding 1)
 
+Runs 78-83, which this review examined, used same-close fills and were deleted on 2026-10-06
+after the rerun; their numbers are kept in this record and in the research doc. Runs 84-89
+replace them one for one.
+
 btest's long history now fills at the next session's open (commit a3966b3, deployed). Rechecked
 from the website (runs 87-89) and `weekly_offsets_longhist.out`: weekly bars returns 9.82% over
 1999-2015 (SPY 4.90%, equal weight 6.61%; paired p 0.11 against SPY, 0.33 against equal weight),

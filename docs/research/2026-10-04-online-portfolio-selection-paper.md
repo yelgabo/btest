@@ -414,7 +414,7 @@ continuous`, `outputs/long_history_continuous.out`), monthly CWMR returns 11.95%
 SPY's 14.4%. Started fresh in 2016, it returned 18.3% over the same years, so the 2016-2024 lead
 that selected it depends on starting the algorithm in 2016.
 
-Without stand-ins (btest long-history data, each ETF only from its launch; runs 78 and 79 from
+Without stand-ins (btest long-history data, each ETF only from its launch; same-close fills; rerun as runs 84 and 85 from
 the website), monthly CWMR returns 7.32% over 1995-2015 against SPY's 9.33%, and 8.60% over
 1995-2024 against 10.82%. Until DIA launched it had one symbol and held cash: its first trade
 was 1998-01-30, by which time SPY had more than doubled. From 1999-01-04 to 2015-12-31, with the
@@ -444,7 +444,7 @@ check. Neither has been run before 1999. The 1999-2015 window has been seen only
 - Run once each from the website. Whatever the outcome, neither is changed and rerun on this
   window.
 
-Result (website runs 80 and 81): **both pass.**
+Result (same-close fills; rerun as runs 86 and 87): **both pass.**
 
 | 1999-01-01 to 2015-12-31, 0.7 bp | CAGR | Sharpe (T-bill) | Max drawdown | Turnover |
 |---|---|---|---|---|
@@ -465,7 +465,7 @@ ETFs returned 6.61% (Sharpe 0.33), so holding these ETFs at all beat SPY in this
   bp. Bid-ask spreads on the sector SPDRs were wider in 1999-2008 than today's 0.7 bp, so the
   weekly result depends on costs this backtest assumes but cannot confirm for those years.
 
-Weekly bars run on from 1999 to 2024 (website run 82, not pre-registered; 2016-2024 was already
+Weekly bars run on from 1999 to 2024 (same-close fills, rerun as run 88; not pre-registered; 2016-2024 was already
 seen): 13.32% against SPY's 8.09%, Sharpe 0.60 against 0.40, max drawdown -48.2% against -55.2%,
 turnover 76x. It led SPY in each part: 10.5% against 3.5% in 1999-2007, 12.7% against 6.5% in
 2008-2015, and 16.8% against 14.4% in 2016-2024.
@@ -483,7 +483,7 @@ So the lead before 2016 does not depend on the day the week ends. After 2016 the
 tie SPY, and the calendar version's lead there is the best of six. Every version trades 71x to
 76x its account a year, so the cost question above applies to all of them.
 
-At 10 bp per dollar traded (website run 83), the calendar version returns 5.58% a year over
+At 10 bp per dollar traded (same-close fills, rerun as run 89), the calendar version returns 5.58% a year over
 1999-2024 against SPY's 8.09% (Sharpe 0.27 against 0.40): 3.8% against 4.9% in 1999-2015 and
 9.1% against 14.4% in 2016-2024. $10,000 grows to $41,023 against SPY's $75,547.
 
@@ -495,8 +495,8 @@ about 7 bp; the backtest charges no commissions (243-315 fills a year in 1999-20
 portfolio holds a median of 2 ETFs. The result is not evidence of a tradable edge.
 
 **Rerun with next-open fills.** btest's long history now fills each order at the next session's
-open (commit a3966b3). Every long-history run was rerun from the website (runs 84-89 replace
-78-83) and the scripts' outputs regenerated (`bars_1999.out`, `weekly_offsets_longhist.out`).
+open (commit a3966b3). Every long-history run was rerun from the website (runs 84-89; the
+same-close runs were deleted) and the scripts' outputs regenerated (`bars_1999.out`, `weekly_offsets_longhist.out`).
 At 0.7 bp unless stated:
 
 | Run | Strategy, window | Same-close fills | Next-open fills | SPY |
@@ -532,7 +532,7 @@ version and one offset above SPY. Weekly bars over 1999-2024 at next-open fills:
 
 ## Corrections
 
-- Long-history runs before commit a3966b3 (runs 78-83, the stand-in research test in
+- Long-history runs before commit a3966b3 (the same-close website runs, since deleted, the stand-in research test in
   `long_history.py`, and the first outputs of `bars_1999.py` and `weekly_offsets_longhist.py`)
   filled orders at the close their decision had already seen. Fills are now at the next
   session's open; the long-history results were rerun (runs 84-89). The stand-in test keeps its
