@@ -556,7 +556,7 @@ export async function labPage(id, ui) {
             ? h("div", {class: "fld"}, h("span", {}, "Decides"), h("div", {class: "muted", style: "margin:0"},
                 h("b", {style: "color:var(--ink)"}, {daily: "Every session", weekly: "Last session of each week",
                     month_end: "Last session of each month", month_start: "First session of each month"}[s.rebalance]),
-                longhist() ? " on each session's close; orders fill at that close. Set by "
+                longhist() ? " on each session's close; orders fill at the next session's open. Set by "
                            : " at 15:30 New York time on data through 15:14; orders fill at 15:45. Set by ",
                 h("code", {class: "num"}, `rebalance = "${s.rebalance}"`), "."))
             : h("div", {class: "fld"}, h("span", {}, "Bars"), h("div", {class: "muted", style: "margin:0"},

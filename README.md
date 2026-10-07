@@ -45,7 +45,8 @@ uv run btest run strategies/olps/cwmr_monthly.py --data longhist --start 1995-01
 
 A second data source for `decide()` strategies: Yahoo's daily adjusted closes for the symbols in
 `btest.toml`, from 1995 or each symbol's first trading day (QQQ joins on 1999-03-10). Day bars,
-so it is kept apart from the minute-bar store; decisions and fills use the close. Pick it per
+so it is kept apart from the minute-bar store. A strategy decides on a session's close and
+fills at the next session's open. Pick it per
 run with `--data longhist` or the Data menu in the lab. Design:
 `docs/superpowers/specs/2026-10-06-long-history-data.md`.
 

@@ -12,11 +12,16 @@ Goal: run portfolio strategies from the website on 1995 onward.
 - **Each symbol is only itself**, from its first trading day: QQQ from 1999-03-10, the sector
   SPDRs from 1998-12-22. Nothing is spliced in before a launch. A strategy's universe grows as
   symbols start trading; `OnlineStrategy` keeps its learned state when one joins.
-- **Storage in Postgres**, table `market.longhist (symbol, date, close)`. Lab jobs run on the
+- **Storage in Postgres**, table `market.longhist (symbol, date, open, close)`. Lab jobs run on the
   Railway worker, which shares the database but not the local data volume.
 - **Loader `btest longhist`** downloads every symbol in `btest.toml` (Yahoo adjusted closes,
   dividends and splits included) and FRED DTB3 back to 1995, and replaces the table. Run by hand.
-- **Timing:** the strategy decides on each session's close and fills at it.
+- **Timing:** the strategy decides on each session's close and its orders fill at the next
+  session's open (dividend-adjusted by the same day's factor as the close). The engine marks the
+  account at each close, so a fill at the next open shows its overnight gap on the decision day;
+  totals are exact, daily returns move by that gap. On a run's last day there is no next open and
+  the fill falls back to the close. Until 2026-10-06 fills were at the decision close, which no
+  one can trade at (`docs/analysis/2026-10-06-weekly-cwmr-review.md`, finding 1).
 - **Sessions:** the NYSE calendar from `pandas_market_calendars`.
 
 ## Not included

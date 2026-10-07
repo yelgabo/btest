@@ -535,7 +535,7 @@ async function runPage(id) {
           h("dt", {}, "Starting cash"), h("dd", {}, money(c.cash)),
           h("dt", {}, "Slippage"), h("dd", {}, `${c.costs.slippage_bps} bps`),
           ...(c.engine === "portfolio" ? [
-              h("dt", {}, "Decides"), h("dd", {}, c.data === "longhist" ? `${c.rebalance}, on the close, fills at the close` : `${c.rebalance}, 15:30 New York time, fills at 15:45`),
+              h("dt", {}, "Decides"), h("dd", {}, c.data === "longhist" ? `${c.rebalance}, on the close, fills at the next open` : `${c.rebalance}, 15:30 New York time, fills at 15:45`),
               h("dt", {}, "Shares"), h("dd", {}, c.fractional ? "fractional" : "whole only"),
               h("dt", {}, "Idle cash"), h("dd", {}, c.cash_yield ? "earns the T-bill rate" : "earns nothing"),
               h("dt", {}, "Option spread"), h("dd", {}, `${pct(c.costs.option_half_spread, 0)} of price each way, min $${c.costs.option_min_half_spread}`),
