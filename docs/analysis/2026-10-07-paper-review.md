@@ -78,3 +78,32 @@ analysis.
 
 Unverified: the reviewers' readings of the CWMR AISTATS paper and the survey (findings 6, 7),
 the signal-delay result (14), the Select Sector SPDRs' actual tick size before 2001 (2).
+
+## After correction
+
+Applied in the paper and in the replication repository (commit `b91b30b`); every changed number
+was rechecked by rerunning the public replication code:
+
+- Fixed findings 1, 2, 4, 5, 6, 9, 10, 11, 12, 18, 21, 22, 23 and 24 as described above. The
+  tick-size argument is removed; the abstract and section 6.3 give both break-evens (SPY 6-7 bp,
+  equal weight about 4.5 bp: 7.06% at 4 bp, 6.65% at 4.5 bp against 6.61%).
+- Finding 3: added Table 6 with block-bootstrap p-values and 95% intervals beside the
+  Jobson-Korkie-Memmel test, and replaced the "conservative" sentence.
+- Finding 7: the method section now says the authors' code describes its CWMR as a simplified
+  version and lists the differences we verified, "among other differences".
+- Finding 8: added a related-work paragraph and a contribution statement. All eleven new
+  references were checked against Crossref, JMLR, PMLR or arXiv, and each claim made about them
+  against its abstract or first page.
+- Finding 14: added section 6.4; trading one session late gives 7.36% (Sharpe 0.35), bootstrap
+  p against equal weight 0.92, reproduced in `etf_tables.py`.
+- Finding 15: the configuration count is labelled approximate and the deflated Sharpe ratio named
+  as the uncorrected next step.
+- Finding 17: section 6 now states that the variants were proposed after the holdout result and
+  that weekly bars failed the 2016-2024 offset check; section 7 states that the registered design
+  filled at the close.
+- Finding 20: the replication LICENSE keeps the original authors' MIT notice; the README notes
+  that the Yahoo endpoint is unofficial and limited to personal use.
+
+Still open (author decisions): finding 13 (estimated spreads before 2016), finding 16 (publish
+the pre-registration texts or retitle as pre-specified), finding 19 (AI disclosure wording), and
+the single author's "we".
