@@ -1,8 +1,13 @@
 """Portfolio strategy template: every setting and every data call a decide() strategy can use.
 
 It runs as is and places no trades. Duplicate it, then fill in decide(). Portfolio strategies
-make one decision per scheduled session, the same way the live system trades them: at 15:30
-New York time (12:30 on half days) on data through the 15:14 bar, with orders filling at 15:45.
+make one decision per scheduled session. On btest bars (the default Data choice, from 2016) that
+is the way the live system trades them: at 15:30 New York time (12:30 on half days) on data
+through the 15:14 bar, with orders filling at 15:45. On long history (from 1995, day bars) the
+decision is on each session's close and orders fill at the next session's open.
+
+For a strategy driven by an online learning algorithm (CWMR, exponential gradient, ...), start
+from templates/online_portfolio instead.
 """
 
 import numpy as np
@@ -44,8 +49,9 @@ class MyPortfolio(Strategy):
     # data.history(sym, field="close", n=None)
     #                              numpy array of daily values, adjusted for splits and
     #                              dividends; field is open, high, low, close or volume. The
-    #                              last value is today as of the cutoff (today's "close" is the
-    #                              15:14 price). Empty before the symbol's data starts.
+    #                              last value is today as of the cutoff (on btest bars today's
+    #                              "close" is the 15:14 price; on long history it is the
+    #                              close). Empty before the symbol's data starts.
     # data.frame(field="close", n=None)
     #                              the same for all symbols as a polars DataFrame: a date
     #                              column plus one column per symbol, null before data starts
@@ -67,7 +73,7 @@ class MyPortfolio(Strategy):
     #
     # The engine: notional orders sized at cutoff prices, sells before buys, slippage and the
     # SEC fee on sales, idle cash earning T-bills (if ticked), dividends paid in cash on the
-    # ex-date, written puts must be fully secured by cash and are assigned at expiry when in
+    # ex-date (on long history they are in the adjusted prices instead), written puts must be fully secured by cash and are assigned at expiry when in
     # the money. Keep state only in what data shows you (positions, prices): the live system
     # starts a fresh process for every decision, so attributes set on self do not survive.
     # -------------------------------------------------------------------------------------
