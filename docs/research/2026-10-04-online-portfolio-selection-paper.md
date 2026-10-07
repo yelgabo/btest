@@ -420,6 +420,26 @@ the website), monthly CWMR returns 7.32% over 1995-2015 against SPY's 9.33%, and
 was 1998-01-30, by which time SPY had more than doubled. From 1999-01-04 to 2015-12-31, with the
 sector ETFs trading, it grew 2.94x against SPY's 2.25x (6.5% a year against 4.9%).
 
+## CWMR on monthly and weekly bars, 1999-2015 (pre-registered)
+
+Written and committed before running. Variant A above learns from daily moves but holds for a
+month. These variants judge winners and losers over the same period they hold: B learns from
+month-end (or week-end) closes and trades at each month (or week) end. In 2016-2024, monthly
+bars returned 11.6% and weekly bars 17.6% against SPY's 14.5%; weekly bars failed the offset
+check. Neither has been run before 1999. The 1999-2015 window has been seen only by variant A.
+
+- Strategies: lab `olps/cwmr_monthly_bars` and `olps/cwmr_weekly_bars` v1 (CWMR with epsilon
+  0.89, theta 0.92, eta 0.93; the 16 ETFs; bars = "monthly" with rebalance = "month_end", and
+  bars = "weekly" with rebalance = "weekly").
+- Data: btest long history (Yahoo day bars), each ETF from its first trading day; QQQ joins in
+  March 1999, IWM in 2000, EFA in 2001, EEM in 2003, XLRE in October 2015.
+- Window: 1999-01-01 to 2015-12-31. Decide and fill at the close; $20,000, 0.7 bp per dollar
+  traded, fractional shares, idle cash at the T-bill rate, benchmark SPY with dividends.
+- Pass, judged separately for each: CAGR and Sharpe ratio both above SPY's. Also reported: max
+  drawdown, turnover.
+- Run once each from the website. Whatever the outcome, neither is changed and rerun on this
+  window.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
