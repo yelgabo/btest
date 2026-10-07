@@ -464,7 +464,7 @@ ETFs returned 6.61% (Sharpe 0.33), so holding these ETFs at all beat SPY in this
 Weekly bars run on from 1999 to 2024 (website run 82, not pre-registered; 2016-2024 was already
 seen): 13.32% against SPY's 8.09%, Sharpe 0.60 against 0.40, max drawdown -48.2% against -55.2%,
 turnover 76x. It led SPY in each part: 10.5% against 3.5% in 1999-2007, 12.7% against 6.5% in
-2008-2015, and 16.9% against 14.4% in 2016-2024.
+2008-2015, and 16.8% against 14.4% in 2016-2024.
 
 Does it depend on the week ending on Friday? (`weekly_offsets_longhist.py`,
 `outputs/weekly_offsets_longhist.out`.) The same strategy with weeks of 5 sessions ending on each
@@ -482,6 +482,13 @@ tie SPY, and the calendar version's lead there is the best of six. Every version
 At 10 bp per dollar traded (website run 83), the calendar version returns 5.58% a year over
 1999-2024 against SPY's 8.09% (Sharpe 0.27 against 0.40): 3.8% against 4.9% in 1999-2015 and
 9.1% against 14.4% in 2016-2024. $10,000 grows to $41,023 against SPY's $75,547.
+
+**Adversarial review** (`docs/analysis/2026-10-06-weekly-cwmr-review.md`, four reviewers): the
+numbers reproduce, but these runs decide on a close and fill at that same close. With the fill one
+session later, weekly bars returns 7.28% over 1999-2015 (equal weight 6.61%, SPY 4.90%), 14.61%
+over 2016-2024 (SPY 14.4%) and 9.76% over 1999-2024 (SPY 8.09%). Costs break even against SPY at
+about 7 bp; the backtest charges no commissions (243-315 fills a year in 1999-2001); and the
+portfolio holds a median of 2 ETFs. The result is not evidence of a tradable edge.
 
 ## Applications for btest
 
