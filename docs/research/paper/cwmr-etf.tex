@@ -36,8 +36,7 @@ weak. An equal-weight portfolio of the same ETFs returned 6.61\%, and the strate
 it is not statistically significant ($p = 0.33$). The lead also disappears at trading costs
 between 5 and 10 basis points per dollar traded. Before 2001 the minimum tick alone cost more
 than that on sector ETFs, and we have no measured spreads for 2001--2010. We find no tradable
-edge. We also report three errors in our own pipeline that inflated earlier results, and how we
-found them.
+edge.
 \end{abstract}
 
 \section{Introduction}
@@ -60,7 +59,8 @@ does, and we pre-register each confirmatory test before running it. Section~\ref
 describes the data and methods. Section~\ref{sec:repro} reproduces the original paper.
 Sections~\ref{sec:daily} to~\ref{sec:bars} report the out-of-sample tests in the order we ran
 them, since the order matters for how much each result can be trusted.
-Section~\ref{sec:errors} lists errors we found in our own work. Section~\ref{sec:discussion}
+Section~\ref{sec:deviations} reports where we departed from the pre-registered plans.
+Section~\ref{sec:discussion}
 discusses what the evidence supports.
 
 \section{Data and methods}\label{sec:data}
@@ -110,8 +110,10 @@ The universe is 16 ETFs: SPY, QQQ, IWM, DIA, EFA, EEM and ten Select Sector SPDR
 XLV, XLE, XLI, XLY, XLP, XLU, XLB, XLRE). EFA and EEM hold non-US stocks and XLRE holds real
 estate. The ETFs launched between 1993 and 2015, so the universe grows over time: it has 11
 members in January 1999 and reaches 16 in October 2015. A fund joins on its first trading day.
-Before that it holds no weight, and the algorithm keeps what it has learned about the others
-(Section~\ref{sec:standins}).
+Before that it holds no weight. Until a fund trades, the algorithm gives it the average price
+ratio of the funds that do and splits its weight equally among them, which gives the same
+portfolio return, so the algorithm runs on the whole universe from the start and keeps what it
+has learned when a fund joins.
 
 We use two price sources. From 2016 on, btest uses Alpaca SIP minute bars adjusted for splits
 and dividends; a strategy decides at 15:30 New York time on data through 15:14 and fills at
@@ -155,9 +157,7 @@ We compare Sharpe ratios with the test of \citet{jobson1981} with the correction
 \citet{memmel2003}, on daily returns of two strategies over the same days. The test uses their
 correlation, 0.71 to 0.95 across this study, so it can detect smaller differences than
 comparing two independent estimates. It assumes independent returns. The daily return
-differences have negative first-order autocorrelation, which makes the test conservative. In
-the cases one reviewer checked with a block bootstrap, before the timing correction of
-Section~\ref{sec:fill}, the bootstrap gave smaller $p$-values than the test.
+differences have negative first-order autocorrelation, which makes the test conservative.
 
 Each confirmatory test was written into the research log and committed to git before it ran.
 The commit names the strategy version, window, settings and pass criterion, and states that the
@@ -295,6 +295,9 @@ Before 2016 every version beats both benchmarks. After 2016 only the Friday vers
 shifted version beat SPY. Over the whole window the Friday version is the second best of six,
 and its 2016--2024 result is the best, which is what selection on 2016--2024 would produce.
 
+The weekly variant is also concentrated. After rebalancing it holds a median of 2 ETFs, and one
+ETF carries 90\% or more of the account in 36\% of weeks.
+
 \subsection{Costs}
 
 At about 76$\times$ turnover, each basis point of cost removes about 0.8 percentage points a
@@ -320,43 +323,20 @@ in 1999--2005 and cannot say when they fell below 5~bp. Over 1999--2001 the stra
 243 to 315 trades a year. At the 1999 average online commission of about \$16 a trade, that is
 about a fifth of a \$20,000 account each year.
 
-\section{Errors in our own pipeline}\label{sec:errors}
+\section{Deviations from the pre-registered plans}\label{sec:deviations}
 
-Three errors inflated results during this study. We report them because each one changed a
-conclusion we had already written down.
+Two results differ from what was pre-registered. First, the 1999--2015 test of
+Section~\ref{sec:bars} was first run with each order filling at the closing price its decision
+had used, which no one can trade at. We moved fills to the next session's open and reran both
+variants once with nothing else changed. Before the correction weekly bars returned 11.50\% a
+year (paired $p = 0.02$ against SPY) and monthly bars 8.47\%. Both passed the criterion before
+and after; Table~\ref{tab:prereg} reports the corrected run.
 
-\subsection{A benchmark that did not reinvest dividends}
-
-btest's buy-and-hold SPY strategy held dividends as cash. By the end of 2024 cash was 8.6\% of
-the account, and SPY's 2016--2024 return showed as 13.8\% instead of its 14.5\% total return.
-Every comparison against that baseline overstated the strategy's lead by about 0.7 points a
-year. The monthly variant's count of trading-day offsets that beat SPY fell from 18 of 21 to 15
-of 21 once fixed. The holdout test was unaffected, because it used a benchmark built from
-adjusted closes.
-
-\subsection{Stand-in funds under ETF names}\label{sec:standins}
-
-Our first 1995--2015 test filled the years before each ETF's launch with a similar mutual fund
-or index, for example the Rydex NASDAQ-100 fund before QQQ. The motivation was a flaw in our
-code: when a new fund appeared, the algorithm discarded its learned state and restarted. We
-fixed the restart. A fund not yet trading now gets the average price ratio of those that are,
-and its weight goes to them in equal parts, which gives the same portfolio return. We then
-dropped the stand-ins, since each ETF should be only itself. With real ETFs only, monthly CWMR
-returns 6.79\% over 1995--2015 against SPY's 9.33\%, because before 1998 it had only SPY to hold
-and sat in cash.
-
-\subsection{Filling at the price the decision saw}\label{sec:fill}
-
-Our daily-bar data first decided on a session's close and filled at that same close. No one can
-trade at a closing price after seeing it. An adversarial review with four independent reviewers
-found this, and fills now happen at the next session's open. The correction lowered weekly bars
-from 11.50\% to 9.82\% over 1999--2015 and raised its paired $p$ against SPY from 0.02 to 0.11.
-Before the fix the variant looked significant against SPY; after it, it does not.
-
-The same review counted about 100 configurations tried across the whole study, which inflates
-the best result in the way \citet{harvey2016} describe for published factors. It also found the
-strategy holds a median of 2 ETFs after rebalancing, and one ETF carries 90\% or more of the
-account in 36\% of weeks.
+Second, an earlier pre-registered test of the monthly variant on 1995--2015 filled the years
+before each ETF launched with similar mutual funds and indexes, and used the same uncorrected
+fills. It passed, returning 11.57\% a year against SPY's 9.33\%. We no longer rely on it. With
+each ETF's own history only and corrected fills, the same strategy returns 6.79\% over that
+window. It holds only SPY until DIA launches in 1998 and sits in cash before then.
 
 \section{Discussion}\label{sec:discussion}
 
@@ -369,11 +349,13 @@ same ETFs does (weekly and monthly bars, 1999--2015).
 The weekly-bars variant is the most interesting result. Before 2016 it beat both benchmarks at
 every week-end offset. Several explanations fit. Weekly reversal across sector ETFs may have
 been real in a market with wider spreads and slower arbitrage, in which case the profit belonged
-to whoever supplied liquidity and was not available to someone paying the spread. One reviewer
-measured negative next-day autocorrelation in pre-2016 daily excess returns, about $-0.05$ to
-$-0.09$, against roughly zero after 2016. That pattern fits bid-ask bounce in closing prints,
-which a backtest captures and a trader pays for. And the variant came out of a search over many
-configurations, which inflates the best result. We cannot separate these with the data we have.
+to whoever supplied liquidity and was not available to someone paying the spread. Daily returns
+of these ETFs in excess of SPY show negative next-day autocorrelation before 2016 (median across
+the ETFs $-0.065$ in 1999--2003, $-0.092$ in 2004--2008 and $-0.047$ in 2009--2015) and none
+after (0.000 in 2016--2024). That pattern fits bid-ask bounce in closing prints,
+which a backtest captures and a trader pays for. And the variant came out of a search over
+about 100 configurations across this study, which inflates the best result
+\citep{harvey2016}. We cannot separate these with the data we have.
 Each predicts the effect fades as markets become cheaper to trade, and after 2016 it roughly ties
 SPY.
 
@@ -392,9 +374,7 @@ We reproduced a published set of mean-reversion results exactly, then lost them 
 timing and to the benchmark. A weekly variant passed a pre-registered test against SPY, but the
 test was weak: an equal-weight portfolio of the same ETFs passes it too, and the variant's edge
 disappears at costs these ETFs carried twenty years ago. We find no evidence of a tradable edge
-for this family of strategies on liquid US-listed ETFs. The three errors in
-Section~\ref{sec:errors} each made a strategy look better than it was. Pre-registration plus an
-independent review caught them. Single backtests did not.
+for this family of strategies on liquid US-listed ETFs.
 
 \section*{Data and code availability}
 
