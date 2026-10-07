@@ -461,6 +461,11 @@ ETFs returned 6.61% (Sharpe 0.33), so holding these ETFs at all beat SPY in this
   bp. Bid-ask spreads on the sector SPDRs were wider in 1999-2008 than today's 0.7 bp, so the
   weekly result depends on costs this backtest assumes but cannot confirm for those years.
 
+Weekly bars run on from 1999 to 2024 (website run 82, not pre-registered; 2016-2024 was already
+seen): 13.32% against SPY's 8.09%, Sharpe 0.60 against 0.40, max drawdown -48.2% against -55.2%,
+turnover 76x. It led SPY in each part: 10.5% against 3.5% in 1999-2007, 12.7% against 6.5% in
+2008-2015, and 16.9% against 14.4% in 2016-2024.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.
