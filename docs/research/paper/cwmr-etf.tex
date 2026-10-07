@@ -13,7 +13,7 @@
 \usepackage{xurl}
 
 
-\title{Does Online Mean-Reversion Survive Trading Costs?\\
+\title{Does Online Mean-Reversion Beat Equal Weight?\\
 A Reproduction and Pre-Registered Tests on US-Listed ETFs}
 \author{Yelnil Gabo}
 \date{October 7, 2026\\[2pt] \small Working paper}
@@ -26,8 +26,8 @@ A Reproduction and Pre-Registered Tests on US-Listed ETFs}
 wealth hundreds to over a thousand times on NASDAQ-100 stocks over 1998--2009. We reproduce
 their tables exactly from their code and data, then test their variant of Confidence-Weighted
 Mean Reversion (CWMR) on 16 liquid US-listed ETFs, with measured spreads and fills that could
-have been executed. Traded daily, it trades about 350 times its account a year and trails SPY
-at 2016--2024 spreads. A monthly variant chosen on 2016--2024 data failed its pre-registered
+have been executed. Traded daily, it trades about 350 times its account a year, trails SPY at
+2016--2024 spreads, and has the same Sharpe ratio as an equal-weight portfolio of the same ETFs. A monthly variant chosen on 2016--2024 data failed its pre-registered
 test on 2025--2026. Variants that learn from weekly or monthly prices beat SPY in a
 pre-registered 1999--2015 test, but an equal-weight portfolio of the same ETFs passes that test
 too, and neither variant's Sharpe ratio is significantly higher than equal weight's
@@ -254,7 +254,9 @@ CWMR's final wealth.
 On the 16 ETFs, deciding at 15:30 and filling at 15:45, daily CWMR returns 16.6\% a year before costs and
 13.8\% at 0.7~bp, against SPY's 14.5\%. It turns over about 350 times its account a year, so
 each basis point of cost takes roughly 3.5 percentage points off the annual return. Its break-even
-cost against SPY lies between 0.43 and 0.70~bp. Paired tests against SPY are not significant at
+cost against SPY lies between 0.43 and 0.70~bp. Equal weight in the same ETFs returned 11.8\% a
+year (Sharpe 0.62); daily CWMR's higher return comes with higher risk, and its Sharpe ratio is
+0.02 higher ($p = 0.91$, block bootstrap $p = 0.91$). Paired tests against SPY are not significant at
 any setting we tested ($p = 0.51$ before costs with the original paper's timing, which trades at
 the same close it decides on). Daily CWMR
 is not worth pursuing at retail costs, and the remaining sections test schedules that trade less.
@@ -285,10 +287,13 @@ Max drawdown & $-20.3$\% & $-18.7$\% \\
 \end{table}
 
 The paired $p$ was 0.77, and the strategy beat SPY in 8 of 21 months. With 438 sessions the test
-also cannot rule out a small edge. A later continuous run
+also cannot rule out a small edge. The plan compared the strategy with SPY only, and we did not
+look at equal weight on the holdout afterwards. Over 2016--2024, the period it was chosen on,
+the variant led equal weight (18.3\% against 11.8\%; Sharpe difference $+0.24$, JKM $p = 0.07$,
+bootstrap $p$ 0.05 to 0.07 across block lengths). A later continuous run
 showed why the 2016--2024 result was misleading. The 18.3\% depends on starting the algorithm
 fresh in January 2016. Run on daily ETF data from 1995 with its state carried forward, the same
-strategy returns 11.2\% over 2016--2024 against SPY's 14.4\%.
+strategy returns 11.2\% over 2016--2024 against SPY's 14.4\% and equal weight's 11.8\%.
 
 \section{Learning from weekly and monthly bars, 1999--2024}\label{sec:bars}
 
