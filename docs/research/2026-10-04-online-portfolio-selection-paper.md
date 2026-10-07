@@ -440,6 +440,27 @@ check. Neither has been run before 1999. The 1999-2015 window has been seen only
 - Run once each from the website. Whatever the outcome, neither is changed and rerun on this
   window.
 
+Result (website runs 80 and 81): **both pass.**
+
+| 1999-01-01 to 2015-12-31, 0.7 bp | CAGR | Sharpe (T-bill) | Max drawdown | Turnover |
+|---|---|---|---|---|
+| CWMR, monthly bars | 8.47% | 0.38 | -61.8% | 14.0x |
+| CWMR, weekly bars | 11.50% | 0.52 | -48.2% | 79.6x |
+| SPY | 4.90% | 0.25 | -55.2% | 0x |
+
+Added after the runs (`bars_1999.py`, `outputs/bars_1999.out`): monthly equal weight in the same
+ETFs returned 6.61% (Sharpe 0.33), so holding these ETFs at all beat SPY in this window.
+
+- Monthly bars against equal weight: paired Sharpe +0.04, p 0.65. Its lead over SPY is mostly the
+  lead equal weight already has.
+- Weekly bars: against SPY, paired Sharpe +0.26, p 0.02; against equal weight, +0.18, p 0.09.
+  Two variants were tested, so p 0.02 is about 0.04 after a Bonferroni correction. In 2016-2024
+  the same variant failed the offset check (0 of 5 offsets beat SPY).
+- Costs: weekly bars falls to 7.86% at 5 bp, 3.78% at 10 bp (below SPY) and -3.91% at 20 bp,
+  because it trades 80x its account a year. Monthly bars holds up: 7.13% at 10 bp, 5.72% at 20
+  bp. Bid-ask spreads on the sector SPDRs were wider in 1999-2008 than today's 0.7 bp, so the
+  weekly result depends on costs this backtest assumes but cannot confirm for those years.
+
 ## Applications for btest
 
 1. **CRP as a standard baseline.** Monthly CRP (`olps/crp`): 0.3x turnover, 11.8% on the ETFs.

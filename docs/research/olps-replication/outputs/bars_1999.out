@@ -1,0 +1,8 @@
+1999-01-01 to 2016-01-01, 0.7 bp
+  Monthly bars           CAGR  8.47%  Sharpe 0.38  max DD -61.8%  turnover  14.0x  vs SPY +0.12, p 0.23; vs equal weight +0.04, p 0.65
+  Weekly bars            CAGR 11.50%  Sharpe 0.52  max DD -48.2%  turnover  79.6x  vs SPY +0.26, p 0.02; vs equal weight +0.18, p 0.09
+  Equal weight, monthly  CAGR  6.61%  Sharpe 0.33  max DD -54.5%  turnover   0.3x  vs SPY +0.08, p 0.10
+  SPY                    CAGR  4.90%  Sharpe 0.25  max DD -55.2%  turnover   0.0x
+CAGR at higher costs per dollar traded:
+  Monthly bars           5 bp 7.85%, 10 bp 7.13%, 20 bp 5.72%
+  Weekly bars            5 bp 7.86%, 10 bp 3.78%, 20 bp -3.91%
