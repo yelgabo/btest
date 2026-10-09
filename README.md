@@ -7,6 +7,11 @@ backtest assumed.
 
 ![A backtest result: the strategy's equity against SPY, and how far each fell from its previous high](docs/images/equity.png)
 
+*An example result, not a recommendation. This is the research's weekly strategy in a backtest
+that assumes cheap trading (0.7 basis points per trade) and was chosen with hindsight on part of
+these years. At 10 basis points it trails SPY, and against simply holding the same funds its
+extra return cannot be told apart from luck. See [What the research found](#what-the-research-found).*
+
 ## Who this is for
 
 - **Product people, analysts and anyone judging a strategy.** You do not need to read code.
