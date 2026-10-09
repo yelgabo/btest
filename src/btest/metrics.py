@@ -7,7 +7,8 @@ TRADING_DAYS = 252
 
 def compute(equity: pl.DataFrame, rf: pl.DataFrame | None = None) -> dict:
     """Metrics from a daily (date, equity) series. rf holds (date, rate) as annual percent,
-    e.g. the 3-month T-bill yield."""
+    e.g. the 3-month T-bill yield. Returns start from the first row, the first session's close,
+    for strategies and benchmarks alike, so trading during the first session is not counted."""
     eq = equity.sort("date")
     values = eq["equity"].to_list()
     if len(values) < 2 or values[0] <= 0:
@@ -23,6 +24,7 @@ def compute(equity: pl.DataFrame, rf: pl.DataFrame | None = None) -> dict:
     years = (eq["date"][-1] - eq["date"][0]).days / 365.25
     total = values[-1] / values[0] - 1
     std = rets["ret"].std()
+    excess_std = excess.std()
     downside = math.sqrt((excess.clip(upper_bound=0) ** 2).mean())
     dd, dd_days = _drawdown(eq)
     return {
@@ -30,9 +32,10 @@ def compute(equity: pl.DataFrame, rf: pl.DataFrame | None = None) -> dict:
         "start_equity": values[0],
         "end_equity": values[-1],
         "total_return": total,
-        "cagr": (values[-1] / values[0]) ** (1 / years) - 1 if years > 0 else None,
+        "cagr": (values[-1] / values[0]) ** (1 / years) - 1 if years > 0 and values[-1] > 0
+                else None,
         "ann_vol": std * math.sqrt(TRADING_DAYS) if std else 0.0,
-        "sharpe": excess.mean() / std * math.sqrt(TRADING_DAYS) if std else None,
+        "sharpe": excess.mean() / excess_std * math.sqrt(TRADING_DAYS) if excess_std else None,
         "sortino": excess.mean() / downside * math.sqrt(TRADING_DAYS) if downside else None,
         "max_drawdown": dd,
         "max_drawdown_days": dd_days,
@@ -53,6 +56,8 @@ def _drawdown(eq: pl.DataFrame) -> tuple[float, int]:
 
 
 def trade_stats(fills, equity: pl.DataFrame, multiplier=lambda symbol: 1) -> dict:
+    """win_rate is per closing fill, so a position closed in three fills counts three times.
+    turnover is buys plus sells over average equity, per year (twice the one-sided figure)."""
     closes = [f.realized_pnl for f in fills if f.realized_pnl is not None]
     traded = sum(abs(f.qty) * f.price * multiplier(f.symbol) for f in fills)
     avg_eq = equity["equity"].mean() if not equity.is_empty() else 0.0

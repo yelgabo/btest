@@ -66,8 +66,12 @@ class OpeningRangeBreakout(Strategy):
 
     def validate(self):
         p = self.params
-        if p["range_minutes"] < 5 or not 9 * 60 + 30 < hhmm(p["exit_at"]) <= 16 * 60:
-            raise ValueError("range_minutes >= 5 and exit_at between 09:30 and 16:00")
+        # The exit is decided on the bar starting at exit_at and fills at the next bar's open,
+        # so 15:50 is the last exit that still fills before the 16:00 close.
+        if (p["range_minutes"] < 5 or p["range_minutes"] % 5
+                or not 9 * 60 + 30 + p["range_minutes"] < hhmm(p["exit_at"]) <= 15 * 60 + 50):
+            raise ValueError("range_minutes a multiple of 5, and exit_at after the range and "
+                             "no later than 15:50")
 
     def on_start(self, ctx):
         self.ts, self.day = [], []

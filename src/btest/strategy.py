@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date as Date, datetime
 
 
 class Bar:
@@ -8,7 +8,7 @@ class Bar:
     def __init__(self, symbol, ts, date, open, high, low, close, volume, raw_open, raw_close):
         self.symbol: str = symbol
         self.ts: datetime = ts
-        self.date: date = date
+        self.date: Date = date
         self.open: float = open
         self.high: float = high
         self.low: float = low

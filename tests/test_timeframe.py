@@ -1,4 +1,3 @@
-from datetime import UTC, date, datetime
 
 import polars as pl
 import pytest

@@ -4,7 +4,8 @@ from btest.strategy import Strategy
 class DualMomentum(Strategy):
     """Antonacci's global equities momentum: hold US or international stocks, whichever rose
     more over the lookback, but only while that return beats T-bills (BIL); otherwise hold
-    bonds. Checked at each month end."""
+    bonds. Checked at each month end. BIL launched in 2007, so on long history it makes no
+    decision until BIL has a lookback of data, in mid-2008."""
 
     universe = ["SPY", "EFA", "AGG", "BIL"]
     rebalance = "month_end"

@@ -1,5 +1,5 @@
-"""Candles for charts: regular-session minute bars, split- and dividend-adjusted like the
-backtests see them, grouped into larger timeframes on New York session time."""
+"""Candles for charts and for strategies with a timeframe above 1m: regular-session minute
+bars, split- and dividend-adjusted, grouped into larger timeframes on New York session time."""
 
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path

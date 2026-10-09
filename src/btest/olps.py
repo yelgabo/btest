@@ -186,6 +186,8 @@ class Anticor(Online):
         s1, s2 = np.std(y1, axis=0), np.std(y2, axis=0)
         s1[s1 == 0] = 1e-10
         s2[s2 == 0] = 1e-10
+        # Kept from the authors' code: np.cov divides by w - 1 and np.std by w, so these
+        # "correlations" run up to w / (w - 1), 1.5 at the default window of 3.
         mcor = mcov / np.outer(s1, s2)
         pos = np.where(mcor > self.threshold, mcor, 0)
         transfer = (np.sum(pos, axis=0) - np.sum(pos, axis=1)) * self.alpha

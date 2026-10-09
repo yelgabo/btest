@@ -22,3 +22,14 @@ uv run --with scipy --with pandas --with cvxpy python docs/research/olps-replica
 | `cwmr_cache_check.py` | btest CWMR port: cached state equals full replay | btest database and bars |
 | `olps_sanity.py` | OLMAR, PAMR, CRP on alternating synthetic prices | none |
 | `dry.py` | One btest engine backtest without saving (`SLIP` env var = bp) | btest database and bars |
+| `port_vs_authors.py` | btest's CWMR port against the authors' `cwmr()` on the paper's data | authors' repo |
+| `monthly.py` | Every OLPS strategy on the 16 ETFs, 2016-2024: daily, daily signal traded at month end, monthly bars | btest database and bars |
+| `monthly_robustness.py` | Monthly CWMR and Anticor: 21 trading offsets, yearly restarts, paired Sharpe tests | btest database and bars |
+| `weekly.py` | As `monthly.py` with weeks, then the robustness checks for weekly CWMR | btest database and bars |
+| `bars_1999.py` | Monthly and weekly bars, equal weight and SPY, 1999-2015 on long history; paired tests; higher costs | btest database (`btest longhist`) |
+| `weekly_offsets_longhist.py` | Weekly-bars CWMR at each of the 5 week-end offsets, 1999-2024 on long history | btest database (`btest longhist`) |
+| `long_history.py`, `long_history_run.py` | Superseded stand-in study: ETFs spliced with older funds from 1995, same-close fills (outputs `long_history_*.out`; `continuous`, `control`, `validate` arguments) | downloads, cached under `data/longhist/` |
+
+Run every script from the repo root; paths such as `strategies/olps/cwmr.py` and `data/` are
+relative to it. `engine_cwmr.out` collects three `dry.py` runs of `strategies/olps/cwmr.py`
+at 0, 0.43 and 0.7 bp, each under a `==` header.

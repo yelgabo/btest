@@ -110,6 +110,16 @@ def occ_symbol(underlying: str, expiry: date, right: str, strike: float) -> str:
     return f"{underlying}{expiry:%y%m%d}{right}{round(strike * 1000):08d}"
 
 
+def is_option(symbol: str) -> bool:
+    """OCC option symbols end in 15 characters (yymmdd, P or C, strike x 1000); tickers are
+    shorter."""
+    return len(symbol) > 15
+
+
+def option_multiplier(symbol: str) -> int:
+    return OPTION_MULTIPLIER if is_option(symbol) else 1
+
+
 def parse_occ(symbol: str) -> OptionContract:
     root, rest = symbol[:-15], symbol[-15:]
     return OptionContract(symbol, root, datetime.strptime(rest[:6], "%y%m%d").date(), rest[6],
@@ -139,13 +149,15 @@ class Market:
                 ff = (j[f].fill_null(0.0) if f == "volume" else j[f].forward_fill())
                 cols[f].append(ff.to_numpy().astype(float))
                 cf = j[f"cut_{f}"]
-                # A day with no bar by the cutoff (a halt) shows yesterday's close.
+                # A day with no bar by the cutoff (a halt) shows yesterday's full-day value.
                 cf = cf.fill_null(0.0) if f == "volume" else cf.fill_null(j[f].forward_fill()
                                                                          .shift(1))
                 cuts[f].append(cf.to_numpy().astype(float))
             raws["cut_close"].append(j["raw_cut_close"].to_numpy().astype(float))
             raws["close"].append(j["raw_close"].forward_fill().to_numpy().astype(float))
-            raws["fill"].append(j["fill"].fill_null(j["raw_close"]).to_numpy().astype(float))
+            # No fill price means no trade at or after the fill time: the order cannot fill, and
+            # falling back to the close would fill at the price the decision saw.
+            raws["fill"].append(j["fill"].to_numpy().astype(float))
         for f in FIELDS:
             self.full[f] = np.column_stack(cols[f]) if cols[f] else np.empty((len(dates), 0))
             self.cut[f] = np.column_stack(cuts[f]) if cuts[f] else np.empty((len(dates), 0))
@@ -198,8 +210,10 @@ class Data:
         self.symbols: list[str] = engine.market.symbols
 
     def history(self, symbol: str, field: str = "close", n: int | None = None) -> np.ndarray:
-        """Daily adjusted values ending with today's value at the cutoff (today's close is the
-        price at 15:14 on a full day). Empty before the symbol's first day of data."""
+        """Daily adjusted values ending with today's value at the cutoff: the 15:14 price on a
+        full day with btest bars, the session's close with long history (whose open, high and low
+        also equal the close, and whose volume is a placeholder). Empty before the symbol's first
+        day of data."""
         if field not in FIELDS:
             raise ValueError(f"field must be one of {', '.join(FIELDS)}")
         if symbol not in self._e.market.col:
@@ -324,6 +338,17 @@ class PortfolioEngine:
         self.cutoff_ts = [c - timedelta(minutes=t.data_min) for c in closes]
         self.fill_ts = [c - timedelta(minutes=t.fill_min) for c in closes]
         self.close_ts = closes
+        # Long history decides on a session's close and fills at the next session's open, so
+        # its orders execute at the start of the next session, after that night's corporate
+        # actions and cash accrual, and the decision day's equity is marked before trading.
+        self.next_open = config.data == "longhist"
+        if self.next_open:
+            opens = {d: o for d, o, _ in sessions.select("date", "open_utc", "close_utc")
+                     .iter_rows()}
+            after = {d: self.all_sessions[k + 1]
+                     for k, d in enumerate(self.all_sessions[:-1])}
+            self.decide_ts = closes
+            self.fill_ts = [opens[after[d]] if d in after else None for d in market.dates]
         self.splits = splits or {}
         self.dividends = dividends or {}
         self.options = options or NoOptions()
@@ -357,7 +382,13 @@ class PortfolioEngine:
         for s, p in self.account.options.items():
             if p.qty:
                 mark = self.options.mark(s, self.cutoff_ts[i])
-                eq += p.qty * (mark if mark is not None else 0.0) * OPTION_MULTIPLIER
+                if mark is None:
+                    # As at the close: an unpriced written put still carries its intrinsic
+                    # liability, so sizing does not treat it as free.
+                    c = parse_occ(s)
+                    under = self.price_at_cutoff(c.underlying, i)
+                    mark = _intrinsic(c, under) if under is not None else 0.0
+                eq += p.qty * mark * OPTION_MULTIPLIER
         return eq
 
     def equity_at_close(self, i: int) -> float:
@@ -383,6 +414,7 @@ class PortfolioEngine:
         snapshots = []
         invested_days = 0
         prev: date | None = None
+        queued: tuple[int, Targets] | None = None
         trading = [i for i, d in enumerate(dates) if start <= d < end]
         for i in trading:
             d = dates[i]
@@ -391,10 +423,17 @@ class PortfolioEngine:
             if prev is not None:
                 self._corporate_actions(prev, d)
                 self._accrue_cash(prev, d)
+            if queued is not None:
+                self._rebalance(*queued)
+                queued = None
             if is_decision_day(self.all_sessions, self.session_pos[d], schedule):
                 targets = strategy.decide(self.decide_ts[i], Data(self, i))
                 if targets is not None:
-                    self._rebalance(i, _as_targets(targets))
+                    if self.next_open:
+                        # A decision on the run's last session has no next open and is dropped.
+                        queued = (i, _as_targets(targets))
+                    else:
+                        self._rebalance(i, _as_targets(targets))
             eq = self.equity_at_close(i)
             snapshots.append((d, eq, self.account.cash))
             if any(p.qty for p in self.account.stocks.values()) or any(

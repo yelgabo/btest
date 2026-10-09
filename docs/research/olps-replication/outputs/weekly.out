@@ -1,27 +1,27 @@
 strategy                               daily         A: trade weekly          B: weekly bars
                               CAGR  Sh  turn          CAGR  Sh  turn          CAGR  Sh  turn
-CWMR (paper)               13.8% 0.65   349x       14.3% 0.68    78x       17.6% 0.81    73x
-PAMR (paper)               11.0% 0.54   137x       12.5% 0.61    49x       13.7% 0.65    44x
-Anticor                     8.1% 0.41   268x       14.5% 0.73    73x       13.0% 0.66    56x
+CWMR (paper)               13.2% 0.63   347x       14.4% 0.68    77x       17.6% 0.81    73x
+PAMR (paper)               10.8% 0.52   136x       12.5% 0.60    49x       13.6% 0.65    44x
+Anticor                     8.0% 0.41   267x       14.5% 0.73    73x       12.9% 0.65    55x
 RMR                        11.8% 0.62     5x       12.4% 0.65     2x       12.9% 0.68     2x
-Pattern matching            8.3% 0.43    65x       10.8% 0.56    27x       12.8% 0.58    15x
-Follow the leader          12.1% 0.63     0x       12.7% 0.66     0x       13.1% 0.68     0x
+Pattern matching            8.4% 0.43    64x       10.8% 0.55    26x       12.7% 0.57    15x
+Follow the leader          12.2% 0.63     0x       12.7% 0.66     0x       13.1% 0.68     0x
 FTRL                       11.9% 0.62     1x       12.5% 0.65     1x       12.8% 0.67     1x
 Exponential gradient       11.9% 0.62     1x       12.5% 0.65     1x       12.8% 0.67     1x
 Universal portfolios       12.3% 0.65     1x       12.8% 0.68     1x       13.1% 0.69     1x
-FTLH                       12.1% 0.62   152x       10.7% 0.55    32x       11.0% 0.58    35x
-Meta, exponential          12.4% 0.62   159x       13.2% 0.66    41x       14.8% 0.73    38x
-Meta, Newton               10.3% 0.51   302x       11.8% 0.58    65x       14.0% 0.69    67x
-OLMAR (Li-Hoi)              6.9% 0.31   300x        6.8% 0.31    91x               (not run)
-CRP monthly                11.8% 0.62     0x
+FTLH                       11.7% 0.60   150x       10.6% 0.55    32x       11.3% 0.59    35x
+Meta, exponential          12.1% 0.61   159x       13.2% 0.67    41x       14.8% 0.73    38x
+Meta, Newton               10.1% 0.50   301x       11.8% 0.59    65x       13.7% 0.68    66x
+OLMAR (Li-Hoi)              6.7% 0.31   299x        6.7% 0.31    91x               (not run)
+CRP monthly                11.9% 0.62     0x
 SPY buy and hold           14.5% 0.73     0x
 
 == CWMR, A: daily signal, trade weekly (SPY 14.5%, Sharpe 0.73)
-week end: CAGR 14.3%, Sharpe 0.68, max DD -33.3%; paired Sharpe vs SPY -0.07, p 0.54, rho 0.95
-year minus SPY: 2016: -5.2%  2017: -3.5%  2018: +6.7%  2019: -9.6%  2020: -3.0%  2021: +17.5%  2022: -4.7%  2023: +3.8%  2024: -0.5%
-every 5 sessions, 5 offsets: CAGR 15.0%, 18.7%, 14.6%, 14.6%, 14.7%; Sharpe 0.71, 0.87, 0.68, 0.69, 0.70; beating SPY on both: 1 of 5
+week end: CAGR 14.4%, Sharpe 0.68, max DD -33.3%; paired Sharpe vs SPY -0.06, p 0.58, rho 0.95
+year minus SPY: 2016: -4.0%  2017: -3.5%  2018: +6.7%  2019: -9.6%  2020: -3.0%  2021: +17.5%  2022: -4.7%  2023: +3.8%  2024: -0.5%
+every 5 sessions, 5 offsets: CAGR 15.0%, 19.4%, 14.7%, 14.1%, 14.8%; Sharpe 0.71, 0.90, 0.69, 0.67, 0.71; beating SPY on both: 1 of 5
 
 == CWMR, B: weekly bars (SPY 14.5%, Sharpe 0.73)
 week end: CAGR 17.6%, Sharpe 0.81, max DD -30.4%; paired Sharpe vs SPY +0.06, p 0.64, rho 0.92
 year minus SPY: 2016: +10.5%  2017: -10.8%  2018: +7.3%  2019: +10.5%  2020: +18.7%  2021: +4.1%  2022: +1.1%  2023: -15.1%  2024: +4.1%
-every 5 sessions, 5 offsets: CAGR 12.4%, 13.4%, 13.2%, 13.9%, 9.4%; Sharpe 0.59, 0.63, 0.63, 0.65, 0.46; beating SPY on both: 0 of 5
+every 5 sessions, 5 offsets: CAGR 12.4%, 13.5%, 13.3%, 14.0%, 9.4%; Sharpe 0.59, 0.63, 0.63, 0.66, 0.46; beating SPY on both: 0 of 5

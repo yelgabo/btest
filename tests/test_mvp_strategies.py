@@ -27,7 +27,7 @@ def test_fast_path_matches_event_engine(path, params, days, per_day):
 
 
 def test_opening_range_is_flat_by_exit_time_and_trades_once_a_day():
-    from btest.engine import Config, Engine
+    from btest.engine import Engine
     cls = load_strategy_class(S / "intraday" / "opening_range.py")
     minute, splits, divs = synthetic(days=30, per_day=390)
     five = bars.aggregate(minute, "5m")

@@ -61,8 +61,7 @@ def store(conn: psycopg.Connection, rows: pl.DataFrame) -> None:
 def frames(conn: psycopg.Connection, symbols: list[str], end: date) -> dict[str, pl.DataFrame]:
     """Per-symbol daily frames in the shape btest.daily.load returns. The strategy sees each
     session's close; fill is the next session's open, so an order placed on what the close showed
-    trades after it. On the last row there is no next open and the engine falls back to the
-    close."""
+    trades after it. On the last row there is no next open, so the engine drops that decision."""
     rows = conn.execute("SELECT symbol, date, open, close FROM market.longhist "
                         "WHERE symbol = ANY(%s) AND date < %s ORDER BY symbol, date",
                         (symbols, end)).fetchall()

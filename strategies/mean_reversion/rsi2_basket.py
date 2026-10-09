@@ -38,7 +38,7 @@ class RSI2Basket(Strategy):
             if s in held:
                 if close[-1] <= close[-p["exit_days"]:].mean():
                     want[s] = slice_
-            elif (close[-1] > close.mean()
+            elif (close[-1] > close[-p["trend_days"]:].mean()
                   and wilder_rsi_last(close[-p["rsi_warmup"]:], p["rsi_days"]) < p["entry_rsi"]):
                 want[s] = slice_
         if set(want) == set(held):

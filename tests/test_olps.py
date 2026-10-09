@@ -82,6 +82,11 @@ OPTIM = {"log_optimal": ref.log_optimal_portfolio,
          "markowitz": ref.markowitz_portfolio}
 
 
+# Markowitz on a single matched day takes np.cov of one row, which is NaN in both
+# implementations; the test checks they agree, so the warning is expected.
+@pytest.mark.filterwarnings("ignore:Degrees of freedom:RuntimeWarning",
+                            "ignore:invalid value encountered:RuntimeWarning",
+                            "ignore:divide by zero encountered:RuntimeWarning")
 @pytest.mark.parametrize("selection", list(SELECT))
 @pytest.mark.parametrize("optimizer", list(OPTIM))
 def test_pattern_matching_matches_the_authors_code(selection, optimizer):

@@ -72,9 +72,9 @@ def _kernel(weights, raw_open, raw_close, day_end, split_ratio, div_rate, cash0,
     for i in range(n):
         if split_ratio[i] != 1.0:
             if pos != 0:
-                pos = math.floor(pos * split_ratio[i])
+                pos = int(pos * split_ratio[i])
                 avg_cost /= split_ratio[i]
-            pending = math.floor(pending * split_ratio[i])
+            pending = int(pending * split_ratio[i])
         if div_rate[i] != 0.0 and pos != 0:
             cash += pos * div_rate[i]
         if pending != 0:

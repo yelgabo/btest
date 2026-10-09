@@ -171,7 +171,7 @@ def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path,
 
     from btest import daily
     from btest.options import OptionBook
-    from btest.portfolio import Market, PortfolioEngine
+    from btest.portfolio import Market, PortfolioEngine, option_multiplier
 
     cls = load_strategy_class(strategy_path)
     strategy = cls(**params)
@@ -206,8 +206,8 @@ def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path,
     starts = [frames[s]["date"].min() for s in universe]
     dates = [d for d in sessions["date"].to_list() if d >= min(starts)]
     market = Market(dates, {s: frames[s] for s in universe})
-    engine = PortfolioEngine(market, all_sessions, pconfig, splits, dividends,
-                             db.get_rates(conn, "DTB3"),
+    rf = db.get_rates(conn, "DTB3")
+    engine = PortfolioEngine(market, all_sessions, pconfig, splits, dividends, rf,
                              None if pconfig.data == "longhist" else OptionBook(conn, end))
     t0 = time.perf_counter()
     result = engine.run(strategy, first_day, last_day)
@@ -218,9 +218,8 @@ def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path,
     equity = result.equity.join(
         benchmark_from_daily(frames, pconfig.benchmark, result.equity["date"], pconfig.cash),
         on="date", how="left")
-    rf = db.get_rates(conn, "DTB3")
     stats = metrics.compute(equity, rf) | metrics.trade_stats(
-        result.fills, equity, lambda sym: 100 if len(sym) > 15 else 1) | {
+        result.fills, equity, option_multiplier) | {
         "exposure": result.exposure, "bars": result.bars, "engine_s": duration,
         "notes": result.notes[:200],
     }

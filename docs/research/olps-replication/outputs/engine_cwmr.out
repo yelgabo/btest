@@ -1,21 +1,21 @@
 == btest engine, olps/cwmr, 0 bp
-load 5.7s run 0.5s fills 7186 exposure 1.00
-cagr                 0.1661       0.1446
-ann_vol              0.1989       0.1794
-sharpe               0.7749       0.7342
+load 5.7s run 0.7s fills 7112 exposure 1.00
+cagr                 0.1597       0.1446
+ann_vol              0.1983       0.1794
+sharpe               0.7491       0.7342
 max_drawdown        -0.3489      -0.3384
-end_equity       79637.8294   67351.3066
+end_equity       75801.1331   67351.3066
 == btest engine, olps/cwmr, 0.43 bp
-load 5.7s run 0.5s fills 7302 exposure 1.00
-cagr                 0.1486       0.1446
-ann_vol              0.1989       0.1794
-sharpe               0.6986       0.7342
+load 5.3s run 0.7s fills 7228 exposure 1.00
+cagr                 0.1424       0.1446
+ann_vol              0.1982       0.1794
+sharpe               0.6731       0.7342
 max_drawdown        -0.3496      -0.3384
-end_equity       69477.8016   67351.3066
+end_equity       66202.7955   67351.3066
 == btest engine, olps/cwmr, 0.7 bp
-load 5.7s run 0.5s fills 7307 exposure 1.00
-cagr                 0.1377       0.1446
-ann_vol              0.1988       0.1794
-sharpe               0.6507       0.7342
+load 5.4s run 0.6s fills 7234 exposure 1.00
+cagr                 0.1316       0.1446
+ann_vol              0.1982       0.1794
+sharpe               0.6254       0.7342
 max_drawdown        -0.3500      -0.3384
-end_equity       63771.5517   67351.3066
+end_equity       60807.1944   67351.3066

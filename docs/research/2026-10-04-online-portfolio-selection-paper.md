@@ -597,3 +597,32 @@ checked reproduced. Dispositions:
 | Draft 3: FTRL attribution to placeholders not isolated | Confirmed, reworded |
 | Draft 3: several numbers printed by no script | Confirmed, scripts now print them (outputs/) |
 | Draft 3: correlation range, Exhibit A vs defaults, abstract quote, "four" vs five, 2017 span, 0.3x turnover, spread wording, "none tested" | Confirmed, corrected |
+
+## 2026-10-08: engine fixes and regenerated outputs
+
+A code review before publishing the repository found three fill-timing errors in the
+portfolio engine. The scripts' outputs in `outputs/` were regenerated with the fixed engine;
+the working paper (`paper/cwmr-etf.tex`) and website runs 35-42 and 84-89 still carry the
+earlier numbers.
+
+- With btest bars, an order for a symbol with no trade between 15:45 and the close filled at
+  that day's last trade, which came before the order existed. This happened on 92 early XLRE
+  sessions and on 2019-08-12, where the bars have a gap for every symbol. Such orders now do
+  not fill.
+- On long history, a trade filled at the next session's open was booked on the decision day
+  and valued at that day's close, so every rebalance day's return included the following
+  night's gap. Orders now execute at the start of the next session.
+- On long history, a decision on a run's last session filled at that session's close, the
+  price it decided on. It is now dropped.
+
+The Sharpe ratio's denominator is now the standard deviation of excess returns rather than of
+raw returns (`btest.metrics`).
+
+Effect on the numbers quoted above. 2016-2024, 16 ETFs, daily CWMR: 16.0% at 0 bp (was
+16.6%), 14.2% at 0.43 bp (was 14.9%; now below SPY's 14.5%), 13.2% at 0.70 bp (was 13.8%).
+Monthly-bar CWMR is unchanged at 18.3%; signal-daily, trade-monthly Anticor 16.8% (was 17.0%).
+1999-2015 on long history: weekly bars 9.82% and monthly bars 8.90% are unchanged; equal
+weight 6.59% (was 6.61%); weekly bars' paired Sharpe test against SPY p 0.09 (was 0.11),
+against equal weight p 0.30 (was 0.33). No verdict in the regenerated outputs changes. Website
+runs 84-85 (monthly CWMR on long history) were not rerun, and the holdout run 73 is not rerun
+by design. Full diffs: `git log -p -- docs/research/olps-replication/outputs/`.

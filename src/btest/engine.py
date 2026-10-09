@@ -64,7 +64,8 @@ class _Symbol:
         self.avg_cost = 0.0
         self.last_close: float | None = None
         self.last_date: date | None = None
-        self.pending: list[int] = []
+        # (decision time, qty): an order fills only on a bar that starts after its decision.
+        self.pending: list[tuple[datetime, int]] = []
         self.splits: list[Split] = []
         self.dividends: list[Dividend] = []
 
@@ -96,13 +97,13 @@ class Context:
         return s.cols[field][start:end]
 
     def order(self, symbol: str, qty: int) -> None:
-        """Market order, filled at the symbol's next bar open."""
+        """Market order, filled at the open of the symbol's first bar after now."""
         if qty:
-            self._e.symbols[symbol].pending.append(int(qty))
+            self._e.symbols[symbol].pending.append((self._e.now, int(qty)))
 
     def order_target(self, symbol: str, target: int) -> None:
         s = self._e.symbols[symbol]
-        self.order(symbol, int(target) - s.position - sum(s.pending))
+        self.order(symbol, int(target) - s.position - sum(q for _, q in s.pending))
 
     def order_target_percent(self, symbol: str, pct: float) -> None:
         s = self._e.symbols[symbol]
@@ -150,7 +151,7 @@ class Engine:
                 s.last_date = d
             self.now = s.ts[row]
             if s.pending:
-                self._fill(s, s.lists["raw_open"][row])
+                self._fill(s, s.lists["raw_open"][row], s.ts[row])
             s.idx = row
             s.last_close = s.lists["raw_close"][row]
             if any(x.position for x in self.symbols.values()):
@@ -172,9 +173,9 @@ class Engine:
             if prev < sp.ex_date <= cur:
                 ratio = sp.new_rate / sp.old_rate
                 if s.position:
-                    s.position = math.floor(s.position * ratio)
+                    s.position = int(s.position * ratio)
                     s.avg_cost /= ratio
-                s.pending = [math.floor(q * ratio) for q in s.pending]
+                s.pending = [(t, int(q * ratio)) for t, q in s.pending]
                 if s.last_close is not None:
                     s.last_close /= ratio
         for dv in s.dividends:
@@ -182,9 +183,12 @@ class Engine:
             if prev < dv.ex_date <= cur and s.position:
                 self.cash += s.position * dv.rate
 
-    def _fill(self, s: _Symbol, open_price: float) -> None:
-        qty = sum(s.pending)
-        s.pending = []
+    def _fill(self, s: _Symbol, open_price: float, bar_ts: datetime) -> None:
+        # Another symbol's bar at this same timestamp may have placed an order; this bar's open
+        # came before that decision, so the order waits for the next bar.
+        due = [q for t, q in s.pending if t < bar_ts]
+        s.pending = [(t, q) for t, q in s.pending if t >= bar_ts]
+        qty = sum(due)
         if not self.config.allow_short and s.position + qty < 0:
             qty = -s.position
         if qty == 0:

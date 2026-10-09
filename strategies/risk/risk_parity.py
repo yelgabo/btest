@@ -4,9 +4,9 @@ from btest.strategy import Strategy
 
 
 class RiskParity(Strategy):
-    """Weights stocks, long bonds and gold by inverse volatility, then scales the whole mix so
-    its estimated volatility is target_vol, never above 100% invested (a cash account has no
-    leverage). Rebalanced at each month end."""
+    """Weights stocks (SPY), long and intermediate Treasuries (TLT, IEF) and gold (GLD) by inverse
+    volatility, then scales the whole mix so its estimated volatility is target_vol, never above
+    100% invested (a cash account has no leverage). Rebalanced at each month end."""
 
     universe = ["SPY", "TLT", "GLD", "IEF"]
     rebalance = "month_end"

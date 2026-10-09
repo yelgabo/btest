@@ -1,17 +1,17 @@
 strategy                               daily        A: trade monthly         B: monthly bars
                               CAGR  Sh  turn          CAGR  Sh  turn          CAGR  Sh  turn
-CWMR (paper)               13.8% 0.65   349x       18.3% 0.87    18x       11.6% 0.56     9x
-PAMR (paper)               11.0% 0.54   137x       12.0% 0.60    13x       12.0% 0.60    11x
-Anticor                     8.1% 0.41   268x       17.0% 0.87    17x       12.5% 0.63    12x
-RMR                        11.8% 0.62     5x       12.4% 0.65     1x       12.2% 0.65     1x
-Pattern matching            8.3% 0.43    65x       11.8% 0.60     6x       12.9% 0.55     7x
-Follow the leader          12.1% 0.63     0x       12.7% 0.66     0x       12.7% 0.66     0x
+CWMR (paper)               13.2% 0.63   347x       18.3% 0.87    17x       11.6% 0.56     9x
+PAMR (paper)               10.8% 0.52   136x       11.9% 0.60    12x       12.0% 0.59    11x
+Anticor                     8.0% 0.41   267x       16.8% 0.86    17x       12.5% 0.63    12x
+RMR                        11.8% 0.62     5x       12.3% 0.65     1x       12.2% 0.65     1x
+Pattern matching            8.4% 0.43    64x       12.0% 0.61     6x       12.9% 0.55     7x
+Follow the leader          12.2% 0.63     0x       12.7% 0.66     0x       12.7% 0.66     0x
 FTRL                       11.9% 0.62     1x       12.4% 0.65     0x       12.2% 0.65     0x
 Exponential gradient       11.9% 0.62     1x       12.4% 0.65     0x       12.3% 0.65     0x
 Universal portfolios       12.3% 0.65     1x       12.7% 0.67     0x       12.7% 0.67     0x
-FTLH                       12.1% 0.62   152x       10.2% 0.53     9x       11.1% 0.57     8x
-Meta, exponential          12.4% 0.62   159x       14.3% 0.73    10x       12.0% 0.61     7x
-Meta, Newton               10.3% 0.51   302x       13.8% 0.68    17x       11.7% 0.59    11x
-OLMAR (Li-Hoi)              6.9% 0.31   300x        5.4% 0.26    21x               (not run)
-CRP monthly                11.8% 0.62     0x
+FTLH                       11.7% 0.60   150x       10.2% 0.53     9x       11.1% 0.57     8x
+Meta, exponential          12.1% 0.61   159x       14.2% 0.73    10x       12.0% 0.61     7x
+Meta, Newton               10.1% 0.50   301x       13.7% 0.67    17x       11.7% 0.59    11x
+OLMAR (Li-Hoi)              6.7% 0.31   299x        5.4% 0.26    21x               (not run)
+CRP monthly                11.9% 0.62     0x
 SPY buy and hold           14.5% 0.73     0x

@@ -123,3 +123,11 @@ def test_sec_fee_is_on_by_default_and_only_on_sells():
     buy, sell = res.fills
     assert buy.fees == 0
     assert sell.fees == pytest.approx(50 * 100 * 20.60 / 1_000_000)
+
+
+def test_order_for_another_symbol_waits_for_a_bar_after_the_decision():
+    # A and B share timestamps; A's bar at t orders B, whose bar at t opened before the decision.
+    data = {"A": bars([(0, 10, 10), (0, 10, 10)]), "B": bars([(0, 50, 100), (0, 60, 60)])}
+    res = Engine(data, FREE).run(Script(orders={0: [("B", 1)]}))
+    (fill,) = res.fills
+    assert fill.price == 60

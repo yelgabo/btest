@@ -61,3 +61,30 @@ def test_an_order_decided_on_a_close_fills_at_the_next_open():
                           cash_yield=False, data="longhist")
     res = PortfolioEngine(Market(dates, frames), days, cfg).run(Buy(), dates[0], dates[-1])
     assert res.fills[0].price == 101.5  # decided on day 0's close of 100, filled at day 1's open
+    # The decision day is marked before the trade, and the fill is stamped at the next open.
+    assert res.equity["equity"][0] == cfg.cash
+    assert res.fills[0].ts == days["open_utc"][1]
+
+
+def test_a_decision_on_the_last_session_never_fills_at_its_own_close():
+    from btest.calendar import nyse_sessions
+    from btest.portfolio import Market, PortfolioConfig, PortfolioCosts, PortfolioEngine
+    from btest.strategy import Strategy
+
+    days = nyse_sessions(date(1995, 1, 3), date(1995, 1, 31))
+    dates = days["date"].to_list()[:3]
+    rows = [("SPY", d, 100.0, 100.0) for d in dates]
+    frames = longhist.frames(FakeConn(rows), ["SPY"], date(1995, 2, 1))
+
+    class BuyLast(Strategy):
+        universe = ["SPY"]
+        params = {}
+
+        def decide(self, as_of, data):
+            return {"SPY": 1.0} if as_of.date() == dates[-1] else None
+
+    cfg = PortfolioConfig(costs=PortfolioCosts(slippage_bps=0.0, sec_fee_rate=0.0),
+                          cash_yield=False, data="longhist")
+    res = PortfolioEngine(Market(dates, frames), days, cfg).run(BuyLast(), dates[0],
+                                                                 date(1995, 2, 1))
+    assert res.fills == []
