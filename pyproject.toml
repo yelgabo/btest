@@ -5,6 +5,7 @@ description = "Minute-bar backtesting for Python trading strategies"
 authors = [
     { name = "yelgabo", email = "yelnilgabo@gmail.com" }
 ]
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "duckdb>=1.5.6",

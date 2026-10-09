@@ -157,7 +157,7 @@ a 60/40 SPY/AGG mix is the fair comparison for GTAA, not SPY alone.
 
 ### G6. Order types (needed only for the ruled-out ORB check)
 
-Market-on-close and market-on-open orders are out: the user does not want closing-auction
+Market-on-close and market-on-open orders are out: the author does not want closing-auction
 strategies, and Alpaca rejects fractional orders with those time-in-force values anyway. Live
 trading uses fractional `day` market orders at 15:45 (see
 [2026-10-04-live-strategies.md](2026-10-04-live-strategies.md)). Stop, limit and bracket orders
@@ -292,7 +292,7 @@ Phase A needs no new data and covers the top-ranked strategy. Phase B covers fou
 six. Its first step, stock momentum on Alpaca prices plus a free membership list, needs no
 purchase; fundamentals, events and pre-2016 history are where a purchase comes in.
 
-## Decisions for the user
+## Open decisions
 
 - Whether 2016 onward is enough history for the stock strategies. Everything for 2016 onward
   is free; a paid source is only needed for older history or to skip the EDGAR parsing work.

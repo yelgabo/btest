@@ -23,7 +23,7 @@ files throughout.
 
 Step 8 can start once step 1 fixes the portfolio rules, and run alongside steps 3-7. Any
 strategy that passes its holdout check can move to paper trading from step 4 on; the holdout
-(2025 onward) is spent by the user, not by the agent.
+(2025 onward) is spent only by an explicit decision of the author, never by a search or sweep.
 
 Step 9 depends only on steps 1, 2 (cash yield on collateral) and 4 (broker adapter for live).
 It does not need the stock universe, SEC data or the fast path, so it can move up to any

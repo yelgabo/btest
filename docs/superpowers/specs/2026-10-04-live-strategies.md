@@ -75,7 +75,7 @@ The backtest copies this timing: decide on data through the 15:14 bar, fill at t
 open plus the spread cost. That replaces today's "fill at the next bar's open", which for daily
 bars means tomorrow morning, a different trade from the one the live system makes.
 
-Market-on-close and market-on-open orders are not used (user decision, 2026-10-04). Every
+Market-on-close and market-on-open orders are not used (author decision, 2026-10-04). Every
 strategy trades with fractional `day` market orders in the 15:45 run, so backtest and live share
 one fill rule.
 
@@ -174,7 +174,7 @@ These sit next to the backtesting gaps (G1 to G14) in the research doc.
 | L2 | Live data jobs | Universe refresh, filing watcher (feed plus nightly index reconcile), companyfacts fetch, Form 4 parser, 15:30 price and options snapshots. |
 | L3 | Scheduler | Runs jobs by NYSE session times from `market.session`, including early closes. Lives on the worker, which already runs the nightly ingest. |
 | L4 | Broker adapter | Alpaca orders: sells before buys, notional or fractional `day` orders, `client_order_id` for idempotency, options orders and assignment polling. |
-| L5 | Reconcile and safety | Store live fills; compare with the backtest fill model each day; a kill switch on daily loss and on order size; alarms to the user. |
+| L5 | Reconcile and safety | Store live fills; compare with the backtest fill model each day; a kill switch on daily loss and on order size; alarms to the operator. |
 | L6 | Fill model to match live | Backtest decision on data through 15:14, fill at the 15:45 open. |
 
 Order: L1 and L6 first, because they change how backtests run and every result before them

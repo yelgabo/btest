@@ -1,9 +1,14 @@
 # btest
 
-Minute-bar backtesting for Python trading strategies. Design:
+Minute-bar backtesting for Python trading strategies, with a portfolio engine, Alpaca paper
+trading and a web workbench. Design:
 [docs/superpowers/specs/2026-10-01-btest-design.md](docs/superpowers/specs/2026-10-01-btest-design.md).
+Research done with it, including a working paper on mean-reversion portfolio selection over
+US ETFs: [docs/research/](docs/research/) (paper: `docs/research/paper/cwmr-etf.pdf`).
 
 ## Setup
+
+Needs Python 3.12, [uv](https://docs.astral.sh/uv/) and PostgreSQL.
 
 ```sh
 cp .env.example .env        # add Alpaca paper keys
@@ -12,13 +17,19 @@ uv sync
 uv run btest migrate
 ```
 
+## Tests
+
+```sh
+createdb btest_test && createdb btest_test_live   # the database tests skip without these
+uv run pytest
+```
+
 ## Data
 
 ```sh
 uv run btest ingest                         # backfill, then incremental on later runs
 uv run btest check-adjust                   # compare adjusted bars with Alpaca's
 uv run btest bars NVDA 2024-06-07T19:50 2024-06-10T13:35
-uv run pytest
 ```
 
 Symbols and history start live in `btest.toml`. Bars are stored under `data/bars/` as Parquet,
@@ -35,6 +46,9 @@ uv run btest report 1                       # rewrite data/reports/run-1.html
 A strategy is a Python file with one `btest.strategy.Strategy` subclass. Each run is stored in
 the Postgres `runs` schema (params, git commit, fills, daily equity, metrics) and gets an HTML
 report under `data/reports/`.
+
+Bars load from `--start`, with no warm-up before it, so a strategy with a 200-day window sits
+in cash for its first 200 sessions while the SPY benchmark is invested from the first close.
 
 ## Long history, 1995 on
 
@@ -68,16 +82,23 @@ with `btest run`; it warns how many times that strategy has already looked at th
 uv run btest ui                             # http://127.0.0.1:8765
 ```
 
-Read-only workbench over the runs and sweeps in Postgres: runs table, run detail (equity,
-drawdown, monthly returns, fills), compare up to four runs, sweep parameter maps, data status.
+Workbench over the runs and sweeps in Postgres: runs table, run detail (equity, drawdown,
+monthly returns, fills), compare up to four runs, sweep parameter maps, data status, and the
+strategy lab below.
 
 ## Strategy lab (website)
 
 The Strategies tab is an editor: file tree (folders come from `/` in names), tabs, Cmd/Ctrl+P
 to jump, Cmd/Ctrl+S to save (every changed save is a new version), Cmd/Ctrl+Enter to run.
 Runs and sweeps are queued in `lab.job` and executed by `btest worker`, each in a child process
-that connects as the restricted `btest_runner` role and has a time limit. `btest
+that connects as the restricted role in `BTEST_RUNNER_DATABASE_URL` (see `.env.example`) and has
+a time limit. `btest
 import-strategies` copies `strategies/*.py` into the lab.
+
+The lab runs whatever Python is saved in it. The child process limits mistakes (time, memory,
+database rights, no broker keys) but is not a sandbox for untrusted code: it runs as the same OS
+user as the worker and has network access. Give the password only to people you would give a
+shell.
 
 ## Strategies and indicators
 
@@ -181,12 +202,11 @@ Project `btest`: `Postgres`, `web` (UI and API) and `worker` (lab jobs, Parquet 
 `/data` volume, nightly ingest at 22:00 UTC on weekdays). One image; `BTEST_ROLE=worker`
 selects the worker.
 
-- Live: https://web-production-584c0.up.railway.app (HTTP basic auth, any username, password
-  is `BTEST_UI_PASSWORD` in `.env` and on the web service).
 - Deploy: `railway up --service web --detach` and `railway up --service worker --detach`.
   Not hooked to GitHub; pushing does not deploy.
 - The website signs in with `BTEST_UI_PASSWORD` (login page, 14-day cookie).
 - Railway Postgres is the main database. The local CLI writes runs and sweeps to it through
   the public TCP proxy (`DATABASE_URL` in `.env`), so new results appear on the site.
-- Parquet bars stay on this machine. `btest ingest` refreshes `market.coverage`, which the
-  Data page reads; `btest coverage` refreshes it alone.
+- The CLI reads its own Parquet bars under `data/bars/`; the worker keeps a separate copy on
+  `/data`. `btest ingest` refreshes `market.coverage`, which the Data page reads; `btest
+  coverage` refreshes it alone.

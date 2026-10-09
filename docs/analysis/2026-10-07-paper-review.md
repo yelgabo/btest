@@ -16,7 +16,7 @@ submission to a journal or arXiv.
 | docs/research/paper/refs.bib | SHA-256 b3f20ba612502c56... |
 | Public replication repository | github.com/yelgabo/cwmr-etf-replication, commit `1b085ff` |
 
-Private evidence behind the paper: the research log
+Evidence behind the paper, in this repository and its database: the research log
 `docs/research/2026-10-04-online-portfolio-selection-paper.md`, the earlier review
 `docs/analysis/2026-10-06-weekly-cwmr-review.md`, scripts and outputs in
 `docs/research/olps-replication/`, btest runs 84-89 and the holdout run 73 in the database.
@@ -30,9 +30,6 @@ work, fairness to the original paper) and a hostile reader and editor (contradic
 verifiability, AI disclosure, licensing). The replication code reproduced every cell of Tables
 3, 5, 6 and 7 for three of them. The main findings were rechecked before synthesis; agreement
 among reviewers is not proof.
-
-Process note: the number auditor sent one request to sec.gov with the author's email address in
-the User-Agent header, without the author's approval. The request was rate-limited and failed.
 
 ## Findings and dispositions
 

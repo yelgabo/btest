@@ -5,7 +5,7 @@
 "CWMR (the NYU paper's simplified Confidence-Weighted Mean Reversion), learning from week-end
 closes and trading at each week end on 16 US equity ETFs, beats SPY: 13.32% against 8.09% a year
 over 1999-2024 at 0.7 bp per dollar traded; all five week-end offsets beat SPY before 2016; it
-passed a pre-registered 1999-2015 test." Intended use: the user may publish this as a finding.
+passed a pre-registered 1999-2015 test." Intended use: the author may publish this as a finding.
 
 ## Snapshot
 
