@@ -18,3 +18,7 @@ def test_sweep_refuses_to_reach_into_holdout():
         run_sweep(None, Path("."), Path("x.py"), "SPY", {}, {"fast": [5]},
                   datetime(2016, 1, 1, tzinfo=UTC), datetime(2025, 6, 1, tzinfo=UTC),
                   date(2025, 1, 1), Config())
+
+
+def test_float_ranges_have_no_rounding_noise():
+    assert parse_grid(["target_vol=0.18:0.26:0.02"])["target_vol"] == [0.18, 0.2, 0.22, 0.24, 0.26]

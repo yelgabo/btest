@@ -13,6 +13,9 @@ const spct = (v, d = 2) => (v == null ? "–" : (v > 0 ? "+" : "") + pct(v, d));
 const num = (v, d = 2) => (v == null ? "–" : sign(v, Math.abs(v).toLocaleString("en-US",
     {minimumFractionDigits: d, maximumFractionDigits: d})));
 const int = v => (v == null ? "–" : Math.round(v).toLocaleString("en-US"));
+// Grid values built by repeated float addition (0.19999999999999998) print as typed.
+const pval = v => (typeof v === "number" ? String(Number(v.toPrecision(12)))
+                   : typeof v === "string" ? v : JSON.stringify(v));
 // Share counts: whole numbers as is, fractional shares to three decimals.
 // Long universes (portfolio strategies) collapse to the first few tickers and a count; the
 // full list is on hover.
@@ -95,7 +98,7 @@ function paramPills(params, hide = []) {
     return h("div", {class: "pills"}, Object.entries(params || {})
         .filter(([k]) => !hide.includes(k))
         .map(([k, v]) => h("span", {class: "pill"}, h("i", {}, k + " "),
-                           typeof v === "string" ? v : JSON.stringify(v))));
+                           pval(v))));
 }
 
 function strategyName(s) {
@@ -711,7 +714,7 @@ async function sweepPage(id) {
 
     function renderFixed() {
         fixedEl.replaceChildren(...params.filter(p => p !== st.x && p !== st.y && sw.grid[p].length > 1).map(p =>
-            sel(`${p} fixed at`, sw.grid[p].map(v => [key(v), String(v)]), key(st.fixed[p] ?? sw.grid[p][0]),
+            sel(`${p} fixed at`, sw.grid[p].map(v => [key(v), pval(v)]), key(st.fixed[p] ?? sw.grid[p][0]),
                 v => { st.fixed[p] = JSON.parse(v); drawHeat(); })));
     }
 
@@ -760,7 +763,7 @@ async function sweepPage(id) {
                 }
                 rect.addEventListener("pointermove", ev => {
                     if (!r) { showTip(ev.clientX, ev.clientY, "Skipped", [["Not a valid combination", ""]]); return; }
-                    showTip(ev.clientX, ev.clientY, params.map(p => `${p}=${r.params[p]}`).join("  "),
+                    showTip(ev.clientX, ev.clientY, params.map(p => `${p}=${pval(r.params[p])}`).join("  "),
                             ["sharpe", "cagr", "max_drawdown", "total_return", "fills"].map(k => [METRICS[k].label, METRICS[k].fmt(r.metrics[k])]));
                 });
                 rect.addEventListener("pointerleave", hideTip);
@@ -830,7 +833,7 @@ async function sweepPage(id) {
         const sorted = [...sw.results].filter(r => r.metrics[st.metric] != null)
             .sort((a, b) => dir * (b.metrics[st.metric] - a.metrics[st.metric])).slice(0, 20);
         topEl.replaceChildren(sortableTable([
-            ...params.map(p => ({key: p, label: p, numeric: true, value: r => r.params[p], cell: r => String(r.params[p])})),
+            ...params.map(p => ({key: p, label: p, numeric: true, value: r => r.params[p], cell: r => pval(r.params[p])})),
             ...["sharpe", "cagr", "max_drawdown", "total_return", "sortino", "fills", "exposure"].map(k => ({
                 key: k, label: METRICS[k].label, numeric: true, value: r => r.metrics[k], cell: r => METRICS[k].fmt(r.metrics[k]),
                 cls: r => (k === "cagr" || k === "total_return" ? tone(r.metrics[k]) : ""),

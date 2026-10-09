@@ -28,7 +28,8 @@ def parse_grid(specs: list[str]) -> dict[str, list]:
         if raw.count(":") == 2:
             start, stop, step = (json.loads(x) for x in raw.split(":"))
             n = int(math.floor((stop - start) / step + 1e-9)) + 1
-            values = [start + k * step for k in range(n)]
+            # Rounding drops float noise from repeated steps: 0.18 + 0.02 is 0.19999999999999998.
+            values = [round(start + k * step, 12) for k in range(n)]
             if all(isinstance(v, int) for v in (start, stop, step)):
                 values = [int(v) for v in values]
         else:
