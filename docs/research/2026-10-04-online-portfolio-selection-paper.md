@@ -661,3 +661,21 @@ Result, 1999-2024 (runs 91 and 93, both on the same cost schedule): CWMR 4.11% a
 0.21, max drawdown -67.2%, turnover 64x; equal weight in the same 15 funds
 (`strategies/olps/equal_weight_open.py`) 6.31%, Sharpe 0.34, -55.0%; SPY 8.09%, 0.40, -55.2%. It trails both. Chosen after the paper's results, so it is a further configuration in
 the search, not a test.
+
+## 2026-10-09: trend and inverse volatility on the same 15 ETFs (exploratory)
+
+Proposed by the same outside model as textbook alternatives: a GTAA trend filter (1/15 in each
+fund above its 10-month average of month-end closes, the rest in T-bills;
+`strategies/portfolio/gtaa_cross_asset.py`) and inverse-volatility weights (60-day standard
+deviation, no volatility target; `strategies/risk/inverse_vol_cross_asset.py`), with equal
+weight on the same timing (`strategies/portfolio/equal_weight_cross_asset.py`). All decide at
+month end on the close and fill at the next open, on the open-to-open strategy's cost schedule.
+Not pre-registered.
+
+Result, 1999-2024 (runs 94-96): GTAA 5.45% a year, Sharpe 0.51, max drawdown -16.3%, turnover
+1.8x, 93% of days invested in at least one fund; inverse volatility 5.22%, Sharpe 0.31, -55.0%;
+equal weight 6.21%, Sharpe 0.33, -55.1%; SPY 8.09%, 0.40, -55.2%. The trend filter gives up
+about 0.8 points a year of return against equal weight for a much smaller worst fall (it held
+86% cash at the end of 2008 and none of the funds in October 2022). Inverse volatility and equal
+weight share their worst fall on 2002-10-09, when only four equity funds traded. No paired test
+was run.
