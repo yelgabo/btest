@@ -602,8 +602,7 @@ checked reproduced. Dispositions:
 
 A code review before publishing the repository found three fill-timing errors in the
 portfolio engine. The scripts' outputs in `outputs/` were regenerated with the fixed engine;
-the working paper (`paper/cwmr-etf.tex`) and website runs 35-42 and 84-89 still carry the
-earlier numbers.
+website runs 35-42 and 84-89 in the database still carry the earlier numbers.
 
 - With btest bars, an order for a symbol with no trade between 15:45 and the close filled at
   that day's last trade, which came before the order existed. This happened on 92 early XLRE
@@ -620,9 +619,12 @@ raw returns (`btest.metrics`).
 
 Effect on the numbers quoted above. 2016-2024, 16 ETFs, daily CWMR: 16.0% at 0 bp (was
 16.6%), 14.2% at 0.43 bp (was 14.9%; now below SPY's 14.5%), 13.2% at 0.70 bp (was 13.8%).
-Monthly-bar CWMR is unchanged at 18.3%; signal-daily, trade-monthly Anticor 16.8% (was 17.0%).
+CWMR with a daily signal traded monthly is unchanged at 18.3%; Anticor traded that way 16.8%
+(was 17.0%).
 1999-2015 on long history: weekly bars 9.82% and monthly bars 8.90% are unchanged; equal
 weight 6.59% (was 6.61%); weekly bars' paired Sharpe test against SPY p 0.09 (was 0.11),
-against equal weight p 0.30 (was 0.33). No verdict in the regenerated outputs changes. Website
-runs 84-85 (monthly CWMR on long history) were not rerun, and the holdout run 73 is not rerun
-by design. Full diffs: `git log -p -- docs/research/olps-replication/outputs/`.
+against equal weight p 0.30 (was 0.33). No verdict in the regenerated outputs changes. Runs 84-85
+(monthly CWMR on long history) were recomputed by `paper_sections_4_5.py`: 6.80% over 1995-2015
+(was 6.79%), 11.18% over the 2016-2024 part (unchanged). The holdout run 73 was not rerun: no
+2025-2026 session lacks a fill bar, and its Sharpe ratios recomputed from the stored equity are
+unchanged (0.81 and 0.87). The working paper was revised with these numbers on 2026-10-08. Full diffs: `git log -p -- docs/research/olps-replication/outputs/`.

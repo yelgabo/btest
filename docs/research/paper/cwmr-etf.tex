@@ -16,7 +16,7 @@
 \title{Does Online Mean-Reversion Beat Equal Weight?\\
 A Reproduction and Pre-Registered Tests on US-Listed ETFs}
 \author{Yelnil Gabo}
-\date{October 7, 2026\\[2pt] \small Working paper}
+\date{October 8, 2026\\[2pt] \small Working paper, revised}
 
 \begin{document}
 \maketitle
@@ -31,7 +31,7 @@ have been executed. Traded daily, it trades about 350 times its account a year, 
 test on 2025--2026. Variants that learn from weekly or monthly prices beat SPY in a
 pre-registered 1999--2015 test, but an equal-weight portfolio of the same ETFs passes that test
 too, and neither variant's Sharpe ratio is significantly higher than equal weight's
-(block-bootstrap $p \ge 0.14$ at every block length tried). The weekly variant's lead over
+(block-bootstrap $p \ge 0.12$ at every block length tried). The weekly variant's lead over
 equal weight needs costs below about 4.5 basis points per dollar traded and mostly disappears if
 each trade is made one session later. We find no statistically significant edge over holding
 the same ETFs.
@@ -206,7 +206,8 @@ strategy will not be changed and rerun on that window. The texts of the three pl
 replication repository, each with its commit hash and time, copied word for word. Git commit
 times come from the author's machine. For the holdout test, GitHub records the push at 10:06:06
 UTC and the backtest database records the run at 10:06:32 UTC. For the other two plans the
-order rests on the repository history, which can be shown to referees on request. Everything
+order rests on the history of the btest repository, which is public (commits \texttt{d9a912d}
+and \texttt{97b0d4a}). Everything
 else reported for the 1999--2015 window (the comparison with equal weight, the tests in
 Table~\ref{tab:tests}, Sections~\ref{sec:offsets} to~\ref{sec:late}) was added after the
 pre-registered runs and is exploratory. We kept 2025-01-01 onward as a holdout.
@@ -251,12 +252,12 @@ CWMR's final wealth.
 
 \section{Daily trading, 2016--2024}\label{sec:daily}
 
-On the 16 ETFs, deciding at 15:30 and filling at 15:45, daily CWMR returns 16.6\% a year before costs and
-13.8\% at 0.7~bp, against SPY's 14.5\%. It turns over about 350 times its account a year, so
-each basis point of cost takes roughly 3.5 percentage points off the annual return. Its break-even
-cost against SPY lies between 0.43 and 0.70~bp. Equal weight in the same ETFs returned 11.8\% a
-year (Sharpe 0.62); daily CWMR's higher return comes with higher risk, and its Sharpe ratio is
-0.02 higher ($p = 0.91$, block bootstrap $p = 0.91$). Paired tests against SPY are not significant at
+On the 16 ETFs, deciding at 15:30 and filling at 15:45, daily CWMR returns 16.0\% a year before costs and
+13.2\% at 0.7~bp, against SPY's 14.5\%. It turns over about 350 times its account a year, so
+each basis point of cost takes roughly 3.5 percentage points off the annual return. At 0.43~bp it
+already trails SPY (14.2\%), so its break-even cost against SPY is below that. Equal weight in
+the same ETFs returned 11.9\% a year (Sharpe 0.62); daily CWMR's higher return comes with higher
+risk, and its Sharpe ratio is 0.01 lower ($p = 0.92$, block bootstrap $p = 0.92$). Paired tests against SPY are not significant at
 any setting we tested ($p = 0.51$ before costs with the original paper's timing, which trades at
 the same close it decides on). Daily CWMR
 is not worth pursuing at retail costs, and the remaining sections test schedules that trade less.
@@ -289,8 +290,8 @@ Max drawdown & $-20.3$\% & $-18.7$\% \\
 The paired $p$ was 0.77, and the strategy beat SPY in 8 of 21 months. With 438 sessions the test
 also cannot rule out a small edge. The plan compared the strategy with SPY only, and we did not
 look at equal weight on the holdout afterwards. Over 2016--2024, the period it was chosen on,
-the variant led equal weight (18.3\% against 11.8\%; Sharpe difference $+0.24$, JKM $p = 0.07$,
-bootstrap $p$ 0.05 to 0.07 across block lengths). A later continuous run
+the variant led equal weight (18.3\% against 11.9\%; Sharpe difference $+0.24$, JKM $p = 0.08$,
+bootstrap $p$ 0.04 to 0.08 across block lengths). A later continuous run
 showed why the 2016--2024 result was misleading. The 18.3\% depends on starting the algorithm
 fresh in January 2016. Run on daily ETF data from 1995 with its state carried forward, the same
 strategy returns 11.2\% over 2016--2024 against SPY's 14.4\% and equal weight's 11.8\%.
@@ -304,7 +305,7 @@ another. Variants that learn from week-end or month-end prices remove that misma
 after the holdout result above. On 2016--2024 minute data, with the algorithm started in
 January 2016, they returned 17.6\% (weekly bars) and 11.6\% (monthly bars) against SPY's
 14.5\%. Weekly bars beat SPY there only with calendar weeks: started on each of the five
-possible offsets of 5-session blocks instead, none of the five did (9.4\% to 13.9\%). Neither
+possible offsets of 5-session blocks instead, none of the five did (9.4\% to 14.0\%). Neither
 variant had been run on data before 2016. The 1999--2015 window had been seen only by the
 monthly daily-signal variant of Section~\ref{sec:holdout} and by equal weight, which had already
 been shown to beat SPY there.
@@ -325,7 +326,7 @@ Sharpe ratio over T-bills; turnover per year.}\label{tab:prereg}
 \midrule
 Weekly bars & 9.82\% & 0.45 & $-50.1$\% & 79$\times$ \\
 Monthly bars & 8.90\% & 0.40 & $-61.4$\% & 14$\times$ \\
-Equal weight (EW) & 6.61\% & 0.33 & $-54.4$\% & 0.3$\times$ \\
+Equal weight (EW) & 6.59\% & 0.33 & $-54.4$\% & 0.3$\times$ \\
 SPY & 4.90\% & 0.25 & $-55.2$\% & 0$\times$ \\
 \bottomrule
 \end{tabular}
@@ -339,21 +340,22 @@ $p$, block-bootstrap $p$ and 95\% bootstrap interval.}\label{tab:tests}
 \toprule
  & Difference & JKM $p$ & Bootstrap $p$ & 95\% interval \\
 \midrule
-Weekly bars vs SPY & $+0.19$ & 0.11 & 0.026 & $[+0.03, +0.37]$ \\
-Weekly bars vs EW & $+0.11$ & 0.33 & 0.22 & $[-0.06, +0.29]$ \\
-Monthly bars vs SPY & $+0.14$ & 0.17 & 0.070 & $[-0.01, +0.30]$ \\
-Monthly bars vs EW & $+0.06$ & 0.52 & 0.42 & $[-0.08, +0.20]$ \\
-EW vs SPY & $+0.08$ & 0.10 & 0.022 & $[+0.01, +0.16]$ \\
+Weekly bars vs SPY & $+0.20$ & 0.09 & 0.022 & $[+0.03, +0.37]$ \\
+Weekly bars vs EW & $+0.11$ & 0.30 & 0.20 & $[-0.05, +0.29]$ \\
+Monthly bars vs SPY & $+0.14$ & 0.17 & 0.069 & $[-0.01, +0.30]$ \\
+Monthly bars vs EW & $+0.06$ & 0.50 & 0.41 & $[-0.08, +0.20]$ \\
+EW vs SPY & $+0.08$ & 0.10 & 0.025 & $[+0.01, +0.16]$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Both variants pass the criterion as written. But equal weight also passes it, and neither
 variant's Sharpe ratio is significantly higher than equal weight's (Table~\ref{tab:tests}).
-Against equal weight the bootstrap $p$ stays between 0.14 and 0.33 for block lengths from 1 to
-126 days. Against SPY it depends on the block length: for weekly bars it falls from 0.11 with
-1-day blocks to 0.006 with 126-day blocks, and the Jobson--Korkie--Memmel test gives 0.11.
-Equal weight against SPY shows the same split (bootstrap $p = 0.022$, JKM $p = 0.10$). After a
+Against equal weight the bootstrap $p$ stays between 0.12 and 0.29 for weekly bars and between
+0.33 and 0.50 for monthly bars, for block lengths from 1 to 126 days. Against SPY it depends on
+the block length: for weekly bars it falls from 0.09 with 1-day blocks to 0.006 with 126-day
+blocks, and the Jobson--Korkie--Memmel test gives 0.09. Equal weight against SPY shows the same
+split (bootstrap $p = 0.025$, JKM $p = 0.10$). After a
 Holm correction for the five comparisons of Table~\ref{tab:tests}, the smallest $p$ is 0.11. In hindsight the criterion was too
 easy. We already knew this basket of ETFs had beaten SPY over this window when we wrote it, so
 equal weight was the right benchmark to name.
@@ -373,7 +375,7 @@ from one run over 1999--2024.}\label{tab:offsets}
 \toprule
  & 1999--2015 & 2016--2024 & 1999--2024 \\
 \midrule
-Calendar weeks (Friday) & 9.9\% & 16.4\% & 12.1\% \\
+Calendar weeks (Friday) & 9.8\% & 16.5\% & 12.1\% \\
 Five 5-session offsets & 7.8--13.4\% & 11.6--14.8\% & 9.6--13.5\% \\
 Equal weight & 6.6\% & 11.8\% & 8.4\% \\
 SPY & 4.9\% & 14.4\% & 8.1\% \\
@@ -382,7 +384,7 @@ SPY & 4.9\% & 14.4\% & 8.1\% \\
 \end{table}
 
 Before 2016 every version beats both benchmarks. After 2016 only the calendar version and one
-offset beat SPY. The calendar version's 16.4\% over 2016--2024 differs from the 17.6\% above
+offset beat SPY. The calendar version's 16.5\% over 2016--2024 differs from the 17.6\% above
 because here the algorithm has learned since 1995 and trades on daily data. Over the whole window the calendar version is the second best of six,
 and its 2016--2024 result is the best, which is what selection on 2016--2024 would produce.
 
@@ -401,15 +403,15 @@ removes about 0.8 percentage points a year (Table~\ref{tab:costs}).
 \toprule
  & 0.7 bp & 5 bp & 10 bp & 20 bp & SPY \\
 \midrule
-1999--2015 & 9.82\% & 6.24\% & 2.23\% & $-5.35$\% & 4.90\% \\
+1999--2015 & 9.82\% & 6.25\% & 2.24\% & $-5.32$\% & 4.90\% \\
 1999--2024 & 12.10\% & 8.50\% & 4.46\% & $-3.17$\% & 8.09\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 The break-even against SPY is about 6--7~bp over 1999--2015 and about 5--6~bp over 1999--2024.
-Against equal weight it is lower: over 1999--2015 weekly bars returns 7.06\% at 4~bp and 6.65\%
-at 4.5~bp, against equal weight's 6.61\%. Our spread measurements cover 2016--2024 at 15:45; we
+Against equal weight it is lower: over 1999--2015 weekly bars returns 7.07\% at 4~bp and 6.66\%
+at 4.5~bp, against equal weight's 6.59\%. Our spread measurements cover 2016--2024 at 15:45; we
 have none for these ETFs before 2016 or at the open, so we cannot say whether costs in
 1999--2015 were below 4.5~bp. Estimating them from daily prices does not work at this scale. We
 applied the efficient estimator of \citet{ardia2024}, which its authors show improves on the earlier
@@ -426,8 +428,8 @@ At the 1999 average commission of the ten largest online brokers, \$15.75 a trad
 
 If the weekly lead came from a reversal that unfolds over days, delaying each trade by one
 session should cost little. Filling at the open two sessions after the signal instead of one
-lowers weekly bars over 1999--2015 from 9.82\% to 7.36\% a year (Sharpe 0.35), and the bootstrap
-$p$ against equal weight rises from 0.22 to 0.92. Most of the lead comes from the first session
+lowers weekly bars over 1999--2015 from 9.82\% to 7.37\% a year (Sharpe 0.35), and the bootstrap
+$p$ against equal weight rises from 0.20 to 0.90. Most of the lead comes from the first session
 after the signal. That reversal happens in a part of the day a trader can capture. Regressing
 each ETF's return in excess of SPY's on its excess return over the signal week gives $-1.4$~bp
 per 1\% move from the signal's close to the next open and $-3.3$~bp from that open to the open
@@ -449,12 +451,23 @@ and after; Table~\ref{tab:prereg} reports the corrected run.
 Second, an earlier pre-registered test of the monthly variant on 1995--2015 filled the years
 before each ETF launched with similar mutual funds and indexes, and used the same uncorrected
 fills. It passed, returning 11.57\% a year against SPY's 9.33\%. We no longer rely on it. With
-each ETF's own history only it returns 7.32\% with the same fills and 6.79\% with corrected
+each ETF's own history only it returns 7.32\% with the same fills and 6.80\% with corrected
 fills, against SPY's 9.33\%; it stays in cash until DIA gives it a second fund, and its first
-trade is in January 1998. Of the two further errors, the holdout plan states that no strategy
+decision is at the end of January 1998. Of the two further errors, the holdout plan states that no strategy
 had used the holdout window, which was wrong (Section~\ref{sec:data}), and its pipeline check
 judged close-to-close fills equivalent to the 15:45 fills, which missed the look-ahead error
 above.
+
+This revision corrects three fill-timing errors in the backtesting code, found in a code review
+after the first version of October 7, 2026. With minute bars, an order for an ETF with no trade
+between 15:45 and the close filled at that day's last earlier trade (92 early XLRE sessions and
+one day with missing data); it now does not fill. With daily data, trades filled at the next
+open were valued at the decision day's close, which put each night's gap into the wrong day's
+return, and a decision on a run's last session filled at its own close. We also now compute
+the Sharpe ratio over the standard deviation of excess returns. Daily CWMR over 2016--2024
+lost 0.6 to 0.7 percentage points a year (13.8\% to 13.2\% at 0.7~bp); other returns moved by at
+most 0.1 points, and $p$-values and Sharpe ratios by at most 0.03. No conclusion changed, and
+the holdout run had no affected sessions.
 
 \section{Discussion}\label{sec:discussion}
 
@@ -510,7 +523,9 @@ is at
 It uses the original authors' public code
 and data \citep{lahanis2025}, Yahoo Finance daily prices and the 3-month Treasury bill rate from
 FRED. Sections~\ref{sec:daily} and~\ref{sec:holdout} used minute bars from Alpaca, which require
-an account; that code is available from the author on request.
+an account. The backtester and the scripts behind those sections are at
+\begin{center}\url{https://github.com/yelgabo/btest}\end{center}
+under \texttt{docs/research/olps-replication/}.
 
 \section*{Acknowledgments}
 

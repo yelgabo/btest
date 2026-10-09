@@ -1,0 +1,20 @@
+2016-2024, btest minute data, decide 15:30, fill 15:45
+   0.0 bp  Daily CWMR               CAGR 15.97%  Sharpe 0.75  turnover 346.4x
+   0.0 bp  SPY                      CAGR 14.46%  Sharpe 0.73
+  0.43 bp  Daily CWMR               CAGR 14.24%  Sharpe 0.67  turnover 347.0x
+  0.43 bp  SPY                      CAGR 14.46%  Sharpe 0.73
+   0.7 bp  Daily CWMR               CAGR 13.16%  Sharpe 0.63  turnover 347.3x
+   0.7 bp  Monthly, daily signal    CAGR 18.26%  Sharpe 0.87  turnover  17.5x
+   0.7 bp  Equal weight             CAGR 11.87%  Sharpe 0.62  turnover   0.3x
+   0.7 bp  SPY                      CAGR 14.46%  Sharpe 0.73
+  Daily CWMR vs equal weight             -0.01  JKM p 0.92  bootstrap p by block (1, 5, 21, 63, 126): 0.92, 0.92, 0.92, 0.91, 0.91
+  Daily CWMR vs SPY                      -0.12  JKM p 0.26  bootstrap p by block (1, 5, 21, 63, 126): 0.25, 0.27, 0.29, 0.24, 0.20
+  Monthly, daily signal vs equal weight  +0.24  JKM p 0.08  bootstrap p by block (1, 5, 21, 63, 126): 0.07, 0.08, 0.05, 0.04, 0.06
+  Monthly, daily signal vs SPY           +0.13  JKM p 0.24  bootstrap p by block (1, 5, 21, 63, 126): 0.24, 0.23, 0.16, 0.12, 0.12
+
+Long history, monthly CWMR (daily signal) from 1995, decide on the close, fill at the next open, 0.7 bp
+  1995-2015: CAGR 6.80% vs SPY 9.33%; first trade 1998-02-02
+  1995-2024: CAGR 8.09% vs SPY 10.82%; first trade 1998-02-02
+  2016-2024 part of the 1995-2024 run, Monthly, daily signal: 11.18%
+  2016-2024 part of the 1995-2024 run, Equal weight: 11.82%
+  2016-2024 part, SPY: 14.38%
