@@ -33,12 +33,16 @@ for an equal-weight portfolio of the same ETFs and 8.1\% for SPY, but it trades 
 account a year, its lead over equal weight is gone at 2.2 basis points, and the lead comes
 almost entirely from 1999--2008. Learning from weekly prices gives the same return with less
 trading (break-even 5.2 basis points), and most of that lead disappears if each trade is made
-one session later. Before correction the return leads have $p \approx 0.02$; after correcting
-for the nine comparisons we report, no return or Sharpe ratio difference is significant
-(smallest Holm-adjusted $p$ 0.085 and 0.11). Weekly and monthly variants passed a pre-registered
-test against SPY that equal weight also passes, and a monthly variant chosen on recent data
-failed its pre-registered test on 2025--2026. We find no statistically significant edge over
-holding the same ETFs.
+one session later. Against equal weight, no return or Sharpe ratio difference is significant
+after correcting for the nine comparisons we report, though weekly bars' return lead comes close
+(Holm-adjusted $p = 0.052$ with 126-day blocks). Against SPY, weekly bars' return lead is
+significant after correction with 63- and 126-day blocks, but not with the 21-day blocks of our
+main specification; equal weight is the comparison that separates the
+algorithm from the choice of ETFs. These
+1999--2024 results include the years the weekly variant was chosen on and assume costs at the
+open that were never measured, so they are not evidence of a tradable edge. Weekly and monthly
+variants passed a pre-registered test against SPY that equal weight also passes, and a monthly
+variant chosen on recent data failed its pre-registered test on 2025--2026.
 \end{abstract}
 
 \section{Introduction}
@@ -323,11 +327,19 @@ blocks, weekly bars reaches 0.048 against equal weight and 0.012 against SPY. Af
 correction for the nine comparisons, the smallest $p$ at any block length is 0.11 (weekly bars
 against SPY, 126-day blocks), and against equal weight it is 0.35.
 
-Returns tell a slightly stronger story than Sharpe ratios. With the same bootstrap on daily log
-returns, daily CWMR's lead over equal weight is $+3.4$ percentage points a year (95\% interval
-$+0.6$ to $+6.3$, $p = 0.021$), and weekly bars' the same ($+0.6$ to $+6.3$, $p = 0.021$).
-After a Holm correction for the nine comparisons the smallest $p$ is 0.085 (weekly bars against
-SPY) and against equal weight 0.15.
+Returns tell a stronger story than Sharpe ratios. With the same bootstrap on daily log returns
+and 21-day blocks, daily CWMR's lead over equal weight is $+3.4$ percentage points a year (95\%
+interval $+0.6$ to $+6.3$, $p = 0.021$), and weekly bars' the same ($+0.6$ to $+6.3$,
+$p = 0.021$). Across block lengths the unadjusted $p$ for these two leads runs from 0.006 to
+0.051. After a Holm correction for the nine comparisons, the leads over equal weight stay above
+0.05 at every block length, though weekly bars reaches 0.052 with 126-day blocks and 0.072 with
+63-day blocks. Weekly bars' lead over SPY is significant after correction with 63- and 126-day
+blocks (0.043 and 0.024; unadjusted 0.005 and 0.003), but not with the 21-day blocks of our main
+specification (0.085). The longer blocks fit the negative autocorrelation of the return
+difference, but choosing among block lengths after seeing the results is itself a selection,
+which Holm does not correct for. Equal weight itself leads SPY by only 0.3 points a year ($p = 0.68$),
+so this lead is not just the choice of ETFs; but equal weight is the comparison that isolates the
+algorithm, and against it the lead is not significant after correction.
 
 \section{Costs}\label{sec:costs}
 
@@ -485,8 +497,9 @@ wrong (Section~\ref{sec:data}).
 The original paper's results are real, in the sense that its code computes them correctly from
 its data. On these ETFs, with fills at the next open, the daily and weekly schedules return
 about 3.7 percentage points a year more than equal weight at 0.7~bp (weekly bars 2.6 averaged
-over the five 5-session offsets), but neither lead is statistically significant after correcting
-for the comparisons, both need costs at the open below a few basis points, the daily lead comes
+over the five 5-session offsets). Neither lead over equal weight is statistically significant
+after correcting for the comparisons, though weekly bars comes close; both need costs at the
+open below a few basis points, the daily lead comes
 from years when such costs were not available, and the monthly schedule chosen for the holdout
 trails both benchmarks.
 
@@ -500,11 +513,11 @@ the trader pays rather than a return. The reversal may be pay for supplying liqu
 \citep{nagel2012}, earned only by a trader whose costs at the open are low enough. And the
 variants came out of a search over about 100 configurations across this study (an approximate
 count), which inflates the best result \citep{harvey2016}. The smallest unadjusted $p$ in
-Section~\ref{sec:results} at any block length is 0.012 ($|z| \approx 2.5$); the expected largest
-$|z|$ of 100 independent standard normal draws is about 2.7, so a search of this size would
-often produce it by chance. The configurations are correlated, which lowers that expected
-maximum, so this is only a rough guide; a deflated Sharpe ratio \citep{bailey2014} would make it
-precise.
+Section~\ref{sec:results}, taken over five block lengths, is 0.003, for weekly bars' return lead over SPY with 126-day blocks
+($|z| \approx 3.0$); against equal weight it is 0.006 ($|z| \approx 2.7$). Among 100 independent
+tests of strategies with no edge, the largest $|z|$ would exceed 3.0 about a quarter of the time
+and 2.7 about half the time. The configurations are correlated, which lowers those chances, so
+this is only a rough guide; a deflated Sharpe ratio \citep{bailey2014} would make it precise.
 
 Before calling either schedule an edge we would need:
 \begin{enumerate}
@@ -525,10 +538,13 @@ strongest algorithm on liquid ETFs over 1999--2024. Traded daily or on weekly ba
 about 3.7 percentage points a year more than an equal-weight portfolio of the same ETFs at
 0.7~bp. The daily lead needs costs at the open below about 2~bp and comes almost entirely from
 1999--2008, when costs were higher; the weekly lead needs costs below about 5~bp and mostly
-disappears if trades are made one session later. Neither the return nor the Sharpe ratio
-difference is significant after correcting for the comparisons. The variant selected on recent
-data trails both benchmarks over 1999--2024 and failed its pre-registered holdout test. We find
-no statistically significant edge for this CWMR variant over holding the same ETFs.
+disappears if trades are made one session later. Against equal weight, no return or Sharpe
+ratio difference is significant after correcting for the comparisons, though weekly bars' return
+lead comes close with 126-day blocks (Holm-adjusted $p = 0.052$); against SPY, its return lead
+is significant with 63- and 126-day blocks but not with our main 21-day blocks. The variant selected on recent data trails both benchmarks over 1999--2024 and
+failed its pre-registered holdout test. These results are in-sample for the weekly variant and
+assume costs at the open that were never measured, so we find no evidence of a tradable edge
+for this CWMR variant over holding the same ETFs.
 
 \section*{Data and code availability}
 

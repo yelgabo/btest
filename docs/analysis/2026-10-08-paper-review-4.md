@@ -75,3 +75,18 @@ Remaining limits: spreads at the open never measured; no deflated Sharpe ratio o
 over the roughly 100 configurations (the count itself is approximate); break-even intervals not
 reported; historical SEC fee rates and the 1999 commission figure not rechecked against their
 sources in this review.
+
+## After the review
+
+The return-lead test added for finding 8 had been run only with 21-day blocks, and the abstract
+claimed no return difference was significant after Holm (smallest 0.085). With 63- and 126-day
+blocks weekly bars' lead over SPY is significant after Holm (0.043, 0.024) and over equal weight
+0.072 and 0.052. `robustness.py` now prints the return-lead p and Holm at every block length; the
+abstract, Sections 4 and 9 and the conclusion state the block-length dependence, that 21-day
+blocks are the main specification, and that choosing among block lengths is itself a selection.
+A claim drafted at the same time, that equal weight explains weekly bars' lead over SPY, was
+false (equal weight leads SPY by 0.26 points, p 0.68) and was corrected before commit. One
+reviewer then checked every changed sentence against the outputs; its four wording findings
+(an unlabelled Holm p, the main-specification caveat, "comes close" at one block length only,
+where 0.003 appears) were applied. Conclusion: no significant lead over equal weight after
+correction, and no evidence of a tradable edge.
