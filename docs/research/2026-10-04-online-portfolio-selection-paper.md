@@ -633,3 +633,15 @@ against equal weight p 0.30 (was 0.33). No verdict in the regenerated outputs ch
 (was 6.79%), 11.18% over the 2016-2024 part (unchanged). The holdout run 73 was not rerun: no
 2025-2026 session lacks a fill bar, and its Sharpe ratios recomputed from the stored equity are
 unchanged (0.81 and 0.87). The working paper was revised with these numbers on 2026-10-08. Full diffs: `git log -p -- docs/research/olps-replication/outputs/`.
+
+## 2026-10-08: the paper reports 1999-2024 throughout
+
+The working paper now reports every ETF result over one window, 1999-2024, on long-history
+daily data (decide on the close, fill at the next open), instead of separate 1999-2015 and
+2016-2024 tables and the 2016-2024 minute-data sections. The registered 1999-2015 results and the
+holdout are stated as such. Sources: the replication repository's `etf_tables.py`,
+`robustness.py` and `autocorrelation.py`, cross-checked by `paper_1999_2024.py` here (identical
+to the digit). New finding on this window: daily CWMR returns 12.13% at 0.7 bp against equal
+weight's 8.37% and SPY's 8.09% (170x turnover, break-even 2.2 bp against equal weight), while the
+monthly daily-signal variant chosen for the holdout returns 7.72%. No Sharpe difference is
+significant after a Holm correction over the nine comparisons (smallest 0.11).
