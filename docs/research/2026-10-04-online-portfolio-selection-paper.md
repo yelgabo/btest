@@ -657,7 +657,7 @@ filled at the same open the signal used, which is a fill at the decision price; 
 open and fills at that session's close. SMH starts on 2011-12-21, when VanEck's ETF began
 trading; Yahoo's earlier SMH prices are the Semiconductor HOLDRS trust.
 
-Result, 1999-2024 (runs 91 and 92): CWMR 4.11% a year, Sharpe 0.21, max drawdown -67.2%,
-turnover 64x; equal weight in the same 15 funds 6.31%, Sharpe 0.34, -55.0%; SPY 8.09%, 0.40,
--55.2%. It trails both. Chosen after the paper's results, so it is a further configuration in
+Result, 1999-2024 (runs 91 and 93, both on the same cost schedule): CWMR 4.11% a year, Sharpe
+0.21, max drawdown -67.2%, turnover 64x; equal weight in the same 15 funds
+(`strategies/olps/equal_weight_open.py`) 6.31%, Sharpe 0.34, -55.0%; SPY 8.09%, 0.40, -55.2%. It trails both. Chosen after the paper's results, so it is a further configuration in
 the search, not a test.
