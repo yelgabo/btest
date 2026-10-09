@@ -30,8 +30,8 @@ to the exact version that produced it, so a good result can always be traced bac
 
 ### Backtest it and read the result
 
-A run shows the headline numbers next to SPY's (the S&P 500 fund most investors would otherwise
-hold), and a price chart with every buy and sell.
+A run shows the headline numbers next to SPY's (an S&P 500 index fund, the usual benchmark), and
+a price chart with every buy and sell.
 
 ![A run page: total return, CAGR, Sharpe, drawdown and fills, with the trades on a price chart](docs/images/run-detail.png)
 
