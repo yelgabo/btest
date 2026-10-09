@@ -42,7 +42,7 @@ def bootstrap_p(eq1, eq2, block, draws=10_000, seed=0):
     n, k = len(r1), len(r1) // block
     out = np.empty(draws)
     for j in range(draws):
-        idx = (rng.integers(0, n - block, k)[:, None] + np.arange(block)).ravel()
+        idx = (rng.integers(0, n - block + 1, k)[:, None] + np.arange(block)).ravel()
         a, b = r1[idx], r2[idx]
         out[j] = (a.mean() / a.std() - b.mean() / b.std()) * math.sqrt(252)
     return float(np.mean(np.abs(out - out.mean()) >= abs(diff)))

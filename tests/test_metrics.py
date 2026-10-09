@@ -27,3 +27,15 @@ def test_sharpe_subtracts_risk_free():
     eq = series([100 * 1.001 ** i * (1.002 if i % 2 else 1) for i in range(50)])
     rf = pl.DataFrame({"date": [date(2023, 1, 1)], "rate": [5.0]})
     assert metrics.compute(eq, rf)["sharpe"] < metrics.compute(eq)["sharpe"]
+
+
+def test_sharpe_divides_by_the_spread_of_excess_returns():
+    import math
+    import numpy as np
+    eq = series([100 * 1.001 ** i * (1.002 if i % 2 else 1) for i in range(50)])
+    # A rate that changes daily makes excess returns vary differently from raw returns.
+    rf = pl.DataFrame({"date": eq["date"], "rate": [5.0 if i % 3 else 0.0 for i in range(50)]})
+    ret = np.diff(eq["equity"].to_numpy()) / eq["equity"].to_numpy()[:-1]
+    excess = ret - np.array([5.0 if i % 3 else 0.0 for i in range(1, 50)]) / 100 / 252
+    want = excess.mean() / excess.std(ddof=1) * math.sqrt(252)
+    assert metrics.compute(eq, rf)["sharpe"] == pytest.approx(want)

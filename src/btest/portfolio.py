@@ -342,6 +342,12 @@ class PortfolioEngine:
         # its orders execute at the start of the next session, after that night's corporate
         # actions and cash accrual, and the decision day's equity is marked before trading.
         self.next_open = config.data == "longhist"
+        adjusted = (any((splits or {}).values()) or any((dividends or {}).values())
+                    or options is not None)
+        if self.next_open and adjusted:
+            # A queued order is sized on decision-day prices and holdings; a split, dividend or
+            # expiry between decision and fill would change them. Long history is adjusted.
+            raise ValueError("long history takes no splits, dividends or options")
         if self.next_open:
             opens = {d: o for d, o, _ in sessions.select("date", "open_utc", "close_utc")
                      .iter_rows()}
@@ -431,7 +437,7 @@ class PortfolioEngine:
                 if targets is not None:
                     if self.next_open:
                         # A decision on the run's last session has no next open and is dropped.
-                        queued = (i, _as_targets(targets))
+                        queued = (i, _as_targets(targets), self.equity_at_cutoff(i))
                     else:
                         self._rebalance(i, _as_targets(targets))
             eq = self.equity_at_close(i)
@@ -510,11 +516,14 @@ class PortfolioEngine:
             self.fills.append(Fill(ts, sym, -contracts, 0.0, 0.0, 0.0, 0.0, realized))
             del self.account.options[sym]
 
-    def _rebalance(self, i: int, t: Targets) -> None:
+    def _rebalance(self, i: int, t: Targets, equity: float | None = None) -> None:
+        """Trade toward t at session i's fill price. A queued long-history order passes the
+        equity seen at its decision, as a notional order sized then would be."""
         cfg, costs = self.config, self.config.costs
         slip = costs.slippage_bps / 10_000
         ts = self.fill_ts[i]
-        equity = self.equity_at_cutoff(i)
+        if equity is None:
+            equity = self.equity_at_cutoff(i)
         self._trade_options(i, t.options, ts)
         wanted = {s: w for s, w in t.weights.items() if w}
         unknown = [s for s in wanted if s not in self.market.col]

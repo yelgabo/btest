@@ -1,6 +1,7 @@
 from datetime import date
 
 import polars as pl
+import pytest
 
 from btest import longhist
 
@@ -88,3 +89,45 @@ def test_a_decision_on_the_last_session_never_fills_at_its_own_close():
     res = PortfolioEngine(Market(dates, frames), days, cfg).run(BuyLast(), dates[0],
                                                                  date(1995, 2, 1))
     assert res.fills == []
+
+
+def test_a_queued_order_is_sized_on_decision_day_equity():
+    # Overnight interest arrives before the next-open fill; the order still targets what the
+    # decision saw, so half of the decision-day equity is invested.
+    from btest.calendar import nyse_sessions
+    from btest.portfolio import Market, PortfolioConfig, PortfolioCosts, PortfolioEngine
+    from btest.strategy import Strategy
+
+    days = nyse_sessions(date(1995, 1, 3), date(1995, 1, 31))
+    dates = days["date"].to_list()[:3]
+    rows = [("SPY", d, 100.0, 100.0) for d in dates]
+    frames = longhist.frames(FakeConn(rows), ["SPY"], date(1995, 2, 1))
+
+    class Half(Strategy):
+        universe = ["SPY"]
+        params = {}
+
+        def decide(self, as_of, data):
+            return None if data.position("SPY") else {"SPY": 0.5}
+
+    rates = pl.DataFrame({"date": [date(1994, 12, 1)], "rate": [10.0]})
+    cfg = PortfolioConfig(costs=PortfolioCosts(slippage_bps=0.0, sec_fee_rate=0.0),
+                          data="longhist")
+    res = PortfolioEngine(Market(dates, frames), days, cfg, rates=rates).run(
+        Half(), dates[0], dates[-1])
+    (fill,) = res.fills
+    assert fill.qty * fill.price == pytest.approx(cfg.cash * 0.5)
+
+
+def test_long_history_refuses_splits():
+    from btest.calendar import nyse_sessions
+    from btest.portfolio import Market, PortfolioConfig, PortfolioEngine
+    from btest.sources.base import Split
+
+    days = nyse_sessions(date(1995, 1, 3), date(1995, 1, 31))
+    dates = days["date"].to_list()[:2]
+    frames = longhist.frames(FakeConn([("SPY", d, 100.0, 100.0) for d in dates]), ["SPY"],
+                             date(1995, 2, 1))
+    with pytest.raises(ValueError):
+        PortfolioEngine(Market(dates, frames), days, PortfolioConfig(data="longhist"),
+                        splits={"SPY": [Split(dates[1], 1, 2, "test")]})

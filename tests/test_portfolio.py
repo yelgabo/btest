@@ -276,3 +276,12 @@ def test_buy_and_hold_reinvests_dividends():
     assert e.account.cash == pytest.approx(0.0, abs=1e-6)
     assert e.account.qty("SPY") == pytest.approx(101.0)
     assert res.equity["equity"][-1] == pytest.approx(10_100.0)
+
+
+def test_no_trade_after_the_fill_time_means_no_fill_not_the_close():
+    # B priced at the cutoff, but nothing traded from the fill time to the close.
+    a = frame([10.0, 10.0])
+    b = frame([20.0, 20.0]).with_columns(
+        pl.when(pl.col("date") == DATES[0]).then(None).otherwise(pl.col("fill")).alias("fill"))
+    _, res = run(Script(plan={0: {"B": 1.0}}), {"A": a, "B": b}, n=2)
+    assert res.fills == []

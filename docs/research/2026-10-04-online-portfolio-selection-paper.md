@@ -58,7 +58,7 @@ abstract's conclusion that these methods "provide superior risk-adjusted returns
   convention, section 3.2), "no rf" (raw), or "T-bill" (excess over the 3-month T-bill rate,
   btest's convention).
 - **Paired test**: Jobson-Korkie test with Memmel's correction on daily returns of two
-  strategies over the same days; it accounts for their correlation (0.71-0.95 in these tests).
+  strategies over the same days; it accounts for their correlation (0.71-0.98 in these tests).
 
 ## 1. The paper's own sample, 1998-2009 (`paper_data.py`)
 
@@ -342,6 +342,10 @@ which the monthly test has already used.
 
 ## Long-history test of monthly CWMR, 1995-2015 (pre-registered)
 
+Superseded. Every number from `long_history_run.py` in this section (stand-in series, and its
+`continuous`, `control` and `validate` runs) decides and fills at the same close; the script
+was not rerun after next-open fills were introduced.
+
 Written and committed before running. The 2016-2024 study chose monthly CWMR; this asks whether
 its lead over SPY also appears in the 21 years before, which no strategy here has seen.
 
@@ -491,7 +495,8 @@ At 10 bp per dollar traded (same-close fills, rerun as run 89), the calendar ver
 numbers reproduce, but these runs decide on a close and fill at that same close. With the fill one
 session later, weekly bars returns 7.28% over 1999-2015 (equal weight 6.61%, SPY 4.90%), 14.61%
 over 2016-2024 (SPY 14.4%) and 9.76% over 1999-2024 (SPY 8.09%). Costs break even against SPY at
-about 7 bp; the backtest charges no commissions (243-315 fills a year in 1999-2001); and the
+about 7 bp; the backtest charges no commissions (243-315 fills a year in 1999-2001 with those same-close
+fills; 238-313 with next-open fills, `robustness.py` in the replication repository); and the
 portfolio holds a median of 2 ETFs. The result is not evidence of a tradable edge.
 
 **Rerun with next-open fills.** btest's long history now fills each order at the next session's
