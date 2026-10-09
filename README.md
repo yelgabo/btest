@@ -46,7 +46,7 @@ Tick two to four runs to overlay them. Here the same strategy runs at two tradin
 0.7 and 10 basis points per dollar traded: the costs alone take it from beating SPY to trailing
 it.
 
-![Two runs of the same strategy compared, one with ten times the trading costs](docs/images/compare.png)
+![Two runs of the same strategy compared, at 0.7 and at 10 basis points of trading cost](docs/images/compare.png)
 
 ### Try settings without fooling yourself
 
