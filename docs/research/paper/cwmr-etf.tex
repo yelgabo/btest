@@ -360,6 +360,46 @@ Holm correction for the five comparisons of Table~\ref{tab:tests}, the smallest 
 easy. We already knew this basket of ETFs had beaten SPY over this window when we wrote it, so
 equal weight was the right benchmark to name.
 
+\subsection{The whole period, 1999--2024}\label{sec:whole}
+
+Table~\ref{tab:whole} runs both variants and the benchmarks once over 1999--2024. It is
+exploratory and was not pre-registered: 2016--2024 is where both variants were first run, and
+where weekly bars had already failed the 5-session offset check described above, so those
+years are not out of sample.
+
+\begin{table}[ht]
+\centering
+\caption{Exploratory: 1999--2024, at 0.7 bp per dollar traded, with paired tests as in
+Table~\ref{tab:tests} (21-day blocks).}\label{tab:whole}
+\begin{tabular}{lrrrr}
+\toprule
+ & CAGR & Sharpe & Max drawdown & Turnover \\
+\midrule
+Weekly bars & 12.10\% & 0.55 & $-50.1$\% & 76$\times$ \\
+Monthly bars & 10.66\% & 0.49 & $-61.4$\% & 14$\times$ \\
+Equal weight (EW) & 8.37\% & 0.42 & $-54.4$\% & 0.3$\times$ \\
+SPY & 8.09\% & 0.40 & $-55.2$\% & 0$\times$ \\
+\midrule
+ & Difference & JKM $p$ & Bootstrap $p$ & 95\% interval \\
+\midrule
+Weekly bars vs SPY & $+0.14$ & 0.10 & 0.031 & $[+0.02, +0.28]$ \\
+Weekly bars vs EW & $+0.12$ & 0.14 & 0.080 & $[-0.02, +0.26]$ \\
+Monthly bars vs SPY & $+0.07$ & 0.38 & 0.28 & $[-0.06, +0.21]$ \\
+Monthly bars vs EW & $+0.05$ & 0.46 & 0.40 & $[-0.07, +0.18]$ \\
+EW vs SPY & $+0.02$ & 0.63 & 0.55 & $[-0.04, +0.09]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Over the whole period weekly bars' lead over equal weight is clearer than over 1999--2015
+alone: the bootstrap $p$ falls from 0.15 with 1-day blocks to 0.049 with 126-day blocks
+(0.050 with 63-day blocks), and the Jobson--Korkie--Memmel test gives 0.14. After a Holm
+correction for the five comparisons the smallest $p$ is 0.15, and 0.32 for weekly bars against
+equal weight. The added years are the ones the variant was chosen on: over 2016--2024 the
+calendar-week version is the best of the six week-end versions in Table~\ref{tab:offsets}, and
+the five offset versions lead equal weight there by less or trail it. Monthly bars and equal
+weight are not distinguishable from SPY over the whole period.
+
 \subsection{Robustness to the day the week ends}\label{sec:offsets}
 
 Weekly bars end on each calendar week's last session, usually a Friday. We reran the strategy
