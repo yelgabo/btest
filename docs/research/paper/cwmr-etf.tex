@@ -191,13 +191,15 @@ Equal-weight average & 0.70 \\
 \end{tabular}
 \end{table}
 
-We charge 0.7~bp unless stated and report results at 5, 10 and 20~bp. The model has no
-commissions, no market impact and no taxes; Section~\ref{sec:discussion} discusses each.
+We charge 0.7~bp unless stated and report results at 5, 10 and 20~bp. The model charges no
+commissions (Section~\ref{sec:costs} estimates what they would have cost) and no taxes
+(Section~\ref{sec:discussion}), and it ignores market impact, assuming an account small enough
+not to move these funds' prices.
 
 The benchmarks are SPY with dividends reinvested and an equal-weight portfolio (EW) of the same
 ETFs, reset at each month end. EW differs from the constant rebalanced portfolio (CRP) of
-Section~\ref{sec:repro}, which resets every day. EW matters more. A strategy that beats SPY only because
-these ETFs beat SPY has learned nothing.
+Section~\ref{sec:repro}, which resets every day. EW matters more: it holds the same funds, so a lead over it
+comes from the algorithm rather than from the choice of ETFs.
 
 \subsection{Statistics and procedure}
 
@@ -317,7 +319,8 @@ EW vs SPY & $+0.02$ & 0.63 & 0.55 & 1 & $[-0.04, +0.09]$ \\
 \end{tabular}
 \end{table}
 
-None of the Sharpe differences against equal weight is significant (Table~\ref{tab:tests}).
+With the 21-day blocks of Table~\ref{tab:tests}, none of the Sharpe differences against equal
+weight is significant.
 Against SPY, daily and weekly bars have bootstrap $p$-values below 0.05 but Jobson--Korkie--Memmel
 $p$-values of 0.06 and 0.10. The bootstrap $p$ depends on the block length. The daily return
 difference between each variant and equal weight is negatively autocorrelated over several weeks
@@ -556,8 +559,8 @@ together with the texts of the three pre-registered plans, is at
 It uses the original authors' public code and data \citep{lahanis2025}, Yahoo Finance daily
 prices and the 3-month Treasury bill rate from FRED. The holdout test and the 2016--2024 search
 of Section~\ref{sec:holdout} used minute bars from Alpaca, which require an account. The
-backtester, which computes the same tables independently, and the scripts behind those sections
-are at
+backtester, which computes the same tables with its own engine, and the scripts behind those
+sections are at
 \begin{center}\url{https://github.com/yelgabo/btest}\end{center}
 under \texttt{docs/research/olps-replication/}.
 

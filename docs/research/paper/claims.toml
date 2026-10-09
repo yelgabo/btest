@@ -1,0 +1,226 @@
+# Claim ledger for cwmr-etf.tex: every claim the paper makes, where it says it, and the saved
+# evidence it rests on. check_claims.py fails when a paper anchor or an evidence string is
+# missing, and names the claims and the conclusion that must then be re-derived from the current
+# evidence (not patched). Whitespace is collapsed before matching.
+#
+# Evidence paths start with "btest:" (this repository) or "replication:" (the
+# cwmr-etf-replication repository, found at $CWMR_REPLICATION or ../cwmr-etf-replication).
+
+[conclusion]
+says = """No significant lead over equal weight after correction, and no evidence of a tradable
+edge: the leads need costs at the open that were never measured, the daily lead comes from years
+when such costs were unavailable, the weekly variant was chosen on part of the window and its
+lead mostly vanishes a session later, and the variant chosen for the holdout failed it."""
+paper = ["so we find no evidence of a tradable edge for this CWMR variant over holding the same ETFs"]
+depends_on = ["C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C11", "C12", "C14"]
+
+[[claim]]
+id = "C01"
+says = "The original paper's tables reproduce exactly from its code and data."
+paper = ["reproduces their Tables~3 and~4 \\citep{lahanis2025} exactly: CWMR 1,590.38$\\times$"]
+evidence = [["btest:docs/research/olps-replication/outputs/paper_data.out", "'CWMR': 1590.3818, 'PAMR': 788.2571, 'Anticor': 36.8868"]]
+
+[[claim]]
+id = "C02"
+says = "At 0.7 bp, daily CWMR beats equal weight and SPY over 1999-2024."
+paper = ["Daily & 12.13\\% & 0.56 & $-44.7$\\% & 170$\\times$", "Traded daily, CWMR returns 12.1\\% a year against 8.4\\%"]
+evidence = [
+  ["replication:expected/etf_tables.txt", "Daily 12.13% 0.56 -44.7% 170.4x"],
+  ["replication:expected/etf_tables.txt", "Equal weight 8.37% 0.42 -54.4% 0.3x"],
+  ["replication:expected/etf_tables.txt", "SPY 8.09% 0.40 -55.2% 0.0x"],
+  ["btest:docs/research/olps-replication/outputs/paper_1999_2024.out", "Daily CAGR 12.13% Sharpe 0.56"],
+]
+
+[[claim]]
+id = "C03"
+says = "Daily CWMR's lead over equal weight is gone at about 2.2 bp per dollar traded."
+paper = ["its lead over equal weight is gone at 2.2 basis points", "Daily & 12.13\\% & 1.56\\% & $-9.47$\\% & $-25.09$\\% & 2.2 & 2.3"]
+evidence = [["replication:expected/etf_tables.txt", "Daily 12.13% 1.56% -9.47% -25.09% 2.18bp 2.29bp"]]
+
+[[claim]]
+id = "C04"
+says = "Daily CWMR's lead over equal weight comes almost entirely from 1999-2008."
+paper = ["the lead comes almost entirely from 1999--2008", "over 2009--2024 it returned 13.3\\% against equal weight's 12.8\\% and SPY's 14.5\\%"]
+evidence = [
+  ["replication:expected/robustness.txt", "Daily 1999-2008 10.33% 2009-2024 13.27%"],
+  ["replication:expected/robustness.txt", "Equal weight 1999-2008 1.72% 2009-2024 12.75%"],
+  ["replication:expected/robustness.txt", "SPY 1999-2008 -1.46% 2009-2024 14.52%"],
+]
+
+[[claim]]
+id = "C05"
+says = "Weekly bars matches daily's return with less trading; break-even about 5.2 bp against equal weight."
+paper = ["Learning from weekly prices gives the same return with less trading (break-even 5.2 basis points)", "Weekly bars & 12.10\\% & 8.50\\% & 4.46\\% & $-3.17$\\% & 5.2 & 5.5"]
+evidence = [
+  ["replication:expected/etf_tables.txt", "Weekly bars 12.10% 0.55 -50.1% 76.1x"],
+  ["replication:expected/etf_tables.txt", "Weekly bars 12.10% 8.50% 4.46% -3.17% 5.16bp 5.50bp"],
+]
+
+[[claim]]
+id = "C06"
+says = "Most of the weekly lead over equal weight disappears when each trade is made one session later."
+paper = ["lowers weekly bars from 12.10\\% to 9.51\\% a year (Sharpe 0.44)"]
+evidence = [["replication:expected/etf_tables.txt", "Signal at week end, trade a session later 9.51% 0.44 bootstrap p vs EW 0.843"]]
+
+[[claim]]
+id = "C07"
+says = "No Sharpe difference against equal weight is significant after Holm, at any block length."
+paper = ["the smallest $p$ at any block length is 0.11 (weekly bars against SPY, 126-day blocks), and against equal weight it is 0.35"]
+evidence = [
+  ["replication:expected/robustness.txt", "Daily vs Equal weight 0.091, 0.071, 0.066, 0.054, 0.061 | Holm 0.726, 0.509, 0.459, 0.352, 0.430"],
+  ["replication:expected/robustness.txt", "Weekly bars vs Equal weight 0.139, 0.111, 0.083, 0.048, 0.048 | Holm 0.834, 0.665, 0.500, 0.352, 0.384"],
+  ["replication:expected/robustness.txt", "Weekly bars vs SPY 0.098, 0.064, 0.031, 0.017, 0.012 | Holm 0.726, 0.509, 0.278, 0.157, 0.107"],
+]
+
+[[claim]]
+id = "C08"
+says = "No return lead over equal weight is significant after Holm at any block length; weekly bars comes closest (0.052 at 126 days)."
+paper = ["though weekly bars' return lead comes close (Holm-adjusted $p = 0.052$ with 126-day blocks)", "the leads over equal weight stay above 0.05 at every block length"]
+evidence = [
+  ["replication:expected/robustness.txt", "Weekly bars vs Equal weight 0.051, 0.036, 0.021, 0.009, 0.006 | Holm 0.308, 0.219, 0.148, 0.072, 0.052"],
+  ["replication:expected/robustness.txt", "Daily vs Equal weight 0.031, 0.020, 0.021, 0.013, 0.020 | Holm 0.246, 0.162, 0.148, 0.088, 0.141"],
+  ["replication:expected/robustness.txt", "Daily vs Equal weight +3.41% [+0.62%, +6.32%] p 0.021 Holm 0.148"],
+  ["replication:expected/robustness.txt", "Weekly bars vs Equal weight +3.39% [+0.58%, +6.32%] p 0.021 Holm 0.148"],
+]
+
+[[claim]]
+id = "C09"
+says = "Weekly bars' return lead over SPY is significant after Holm with 63- and 126-day blocks, not with the main 21-day blocks."
+paper = ["Weekly bars' lead over SPY is significant after correction with 63- and 126-day blocks (0.043 and 0.024; unadjusted 0.005 and 0.003), but not with the 21-day blocks of our main specification (0.085)"]
+evidence = [["replication:expected/robustness.txt", "Weekly bars vs SPY 0.044, 0.027, 0.009, 0.005, 0.003 | Holm 0.306, 0.186, 0.085, 0.043, 0.024"]]
+
+[[claim]]
+id = "C10"
+says = "Equal weight barely beats SPY over 1999-2024, so a lead over SPY is not just the choice of ETFs."
+paper = ["Equal weight itself leads SPY by only 0.3 points a year ($p = 0.68$)", "Equal weight itself barely beats SPY over the whole period (8.37\\% against 8.09\\%)"]
+evidence = [["replication:expected/robustness.txt", "Equal weight vs SPY +0.26% [-0.89%, +1.51%] p 0.680 Holm 1.000"]]
+
+[[claim]]
+id = "C11"
+says = "The holdout variant (monthly, daily signal) trails both benchmarks over 1999-2024."
+paper = ["Over 1999--2024 the same variant returns 7.72\\% a year, less than both benchmarks"]
+evidence = [["replication:expected/etf_tables.txt", "Monthly, daily signal 7.72% 0.38 -53.1% 13.8x"]]
+
+[[claim]]
+id = "C12"
+says = "The pre-registered holdout failed: CAGR and Sharpe both slightly below SPY's."
+paper = ["CAGR & 18.28\\% & 18.36\\%", "Sharpe (T-bill) & 0.81 & 0.87", "beat SPY in 8 of 21 full months"]
+evidence = [
+  ["btest:docs/research/olps-replication/outputs/holdout_run73.out", "Monthly CWMR CAGR 18.28% Sharpe 0.81 max DD -20.3%"],
+  ["btest:docs/research/olps-replication/outputs/holdout_run73.out", "SPY CAGR 18.36% Sharpe 0.87 max DD -18.7%"],
+  ["btest:docs/research/olps-replication/outputs/holdout_run73.out", "JKM p 0.77; beat SPY in 8 of 21 full months"],
+]
+
+[[claim]]
+id = "C13"
+says = "Both bar variants passed the registered 1999-2015 test against SPY, and equal weight passes it too."
+paper = ["weekly bars returned 9.82\\% (Sharpe 0.45) and monthly bars 8.90\\% (0.40) against SPY's 4.90\\% (0.25). Equal weight passes the same criterion (6.59\\%, 0.33)"]
+evidence = [
+  ["replication:expected/etf_tables.txt", "Weekly bars 9.82% 0.45 Monthly bars 8.90% 0.40 Equal weight 6.59% 0.33 SPY 4.90% 0.25"],
+]
+
+[[claim]]
+id = "C14"
+says = "Weekly bars' lead comes mostly from 2009-2024, which includes the years it was chosen on."
+paper = ["Weekly bars' lead comes mostly from 2009--2024 (18.0\\% against 12.8\\%; 3.2\\% against 1.7\\% over 1999--2008)"]
+evidence = [
+  ["replication:expected/robustness.txt", "Weekly bars 1999-2008 3.20% 2009-2024 18.04%"],
+  ["replication:expected/robustness.txt", "Equal weight 1999-2008 1.72% 2009-2024 12.75%"],
+]
+
+[[claim]]
+id = "C15"
+says = "Where the week ends moves the weekly return by almost 4 points; every version beats equal weight on CAGR; one of six is significant before correction; calendar weeks rank second."
+paper = ["Which day the week ends on moves the return by almost 4 percentage points a year"]
+evidence = [
+  ["replication:expected/etf_tables.txt", "Calendar weeks (Friday) 12.10% 0.55 0.083"],
+  ["replication:expected/etf_tables.txt", "5-session blocks, offset 2 13.48% 0.61 0.015"],
+  ["replication:expected/etf_tables.txt", "5-session blocks, offset 3 9.64% 0.44 0.862"],
+]
+
+[[claim]]
+id = "C16"
+says = "The weekly reversal is between consecutive opens, not from the close to the next open."
+paper = ["gives $+0.1$~bp per 1\\% move from the signal's close to the next open and $-3.3$~bp from that open to the open after (standard errors 0.6 and 1.2~bp, clustered by week)"]
+evidence = [
+  ["replication:expected/robustness.txt", "close to next open: +0.10 (s.e. 0.63, clustered by week)"],
+  ["replication:expected/robustness.txt", "next open to the open after: -3.33 (s.e. 1.24, clustered by week)"],
+]
+
+[[claim]]
+id = "C17"
+says = "The best unadjusted result is the size a search of about 100 configurations would often produce by chance."
+paper = ["taken over five block lengths, is 0.003", "the largest $|z|$ would exceed 3.0 about a quarter of the time and 2.7 about half the time"]
+evidence = [
+  ["replication:expected/robustness.txt", "Weekly bars vs SPY 0.044, 0.027, 0.009, 0.005, 0.003"],
+  ["replication:expected/robustness.txt", "Weekly bars vs Equal weight 0.051, 0.036, 0.021, 0.009, 0.006"],
+]
+
+[[claim]]
+id = "C18"
+says = "Daily turnover is much higher year by year than the 170x headline, especially early."
+paper = ["the daily schedule traded 230 times its account in an average year and 358 to 410 times in each year from 1999 to 2005"]
+evidence = [["replication:expected/robustness.txt", "mean 230x, 1999-2005 358x to 410x"]]
+
+[[claim]]
+id = "C19"
+says = "1999-2001 commissions would have eaten most of a $20,000 account for daily, a fifth to a quarter for weekly."
+paper = ["the daily schedule's 1,000 to 1,190 trades a year in 1999--2001", "weekly bars' 238 to 313 trades a fifth to a quarter of it"]
+evidence = [
+  ["replication:expected/robustness.txt", "Daily fills per year: 1999 1000, 2000 1147, 2001 1190"],
+  ["replication:expected/robustness.txt", "Weekly bars fills per year: 1999 238, 2000 313, 2001 290"],
+]
+
+[[claim]]
+id = "C20"
+says = "The withdrawn stand-in test's ETF-only result trails SPY mostly because it held cash until 1998."
+paper = ["it returns 6.80\\% against SPY's 9.33\\%", "from its first trade in February 1998 to 2015 it returns 7.05\\% against SPY's 6.03\\%"]
+evidence = [
+  ["btest:docs/research/olps-replication/outputs/paper_sections_4_5.out", "1995-2015: CAGR 6.80% vs SPY 9.33%; first trade 1998-02-02"],
+  ["btest:docs/research/olps-replication/outputs/paper_sections_4_5.out", "from the first fill to 2015: CAGR 7.05% vs SPY 6.03%"],
+]
+
+[[claim]]
+id = "C21"
+says = "The holdout variant was the best of the 2016-2024 minute-data search, 18.3% against SPY's 14.5%."
+paper = ["18.3\\% a year against SPY's 14.5\\%, so we pre-registered a test"]
+evidence = [
+  ["btest:docs/research/olps-replication/outputs/paper_sections_4_5.out", "0.7 bp Monthly, daily signal CAGR 18.26%"],
+  ["btest:docs/research/olps-replication/outputs/paper_sections_4_5.out", "0.7 bp SPY CAGR 14.46%"],
+]
+
+[[claim]]
+id = "C22"
+says = "Paired-test correlations range from 0.71 to 0.98 across the study."
+paper = ["correlation, 0.71 to 0.98 across this study"]
+evidence = [
+  ["replication:expected/robustness.txt", "Correlation of daily returns across the paired tests: 0.90 to 0.98"],
+  ["btest:docs/research/olps-replication/outputs/paper_data.out", "rho 0.71"],
+]
+
+[[claim]]
+id = "C23"
+says = "Table 5 Sharpe tests at 21-day blocks."
+paper = ["Daily vs EW & $+0.13$ & 0.09 & 0.066 & 0.46", "Weekly bars vs SPY & $+0.14$ & 0.10 & 0.031 & 0.28"]
+evidence = [
+  ["replication:expected/etf_tables.txt", "Daily vs Equal weight +0.13 0.09 0.066 [-0.01, +0.27]"],
+  ["replication:expected/etf_tables.txt", "Weekly bars vs SPY +0.14 0.10 0.031 [+0.02, +0.28]"],
+]
+
+[[claim]]
+id = "C24"
+says = "Close-to-close excess returns reverse the next day, which fits bounce in closing prices but not the strategy's open-to-open gain."
+paper = ["(median across the ETFs $-0.036$)"]
+evidence = [["replication:expected/autocorrelation.txt", "1999-2024: median -0.036 over 15 ETFs"]]
+
+[[claim]]
+id = "C25"
+says = "Daily and weekly lead equal weight by about 3.7 points a year at 0.7 bp; weekly 2.6 averaged over the five offsets."
+paper = ["about 3.7 percentage points a year more than equal weight at 0.7~bp (weekly bars 2.6 averaged over the five 5-session offsets)"]
+evidence = [
+  ["replication:expected/etf_tables.txt", "Daily 12.13% 0.56"],
+  ["replication:expected/etf_tables.txt", "Weekly bars 12.10% 0.55"],
+  ["replication:expected/etf_tables.txt", "5-session blocks, offset 0 11.01%"],
+  ["replication:expected/etf_tables.txt", "5-session blocks, offset 1 10.80%"],
+  ["replication:expected/etf_tables.txt", "5-session blocks, offset 4 10.13%"],
+]
