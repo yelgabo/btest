@@ -1,6 +1,6 @@
-"""Table 5 of the working paper recomputed on btest's own engine: the four CWMR schedules, equal
+"""Table 4 of the working paper recomputed on btest's own engine: the four CWMR schedules, equal
 weight and SPY on long history, 1999-2024, deciding on each close and filling at the next open.
-The replication repository's etf_tables.py computes the same table independently."""
+The replication repository's etf_tables.py computes the same table with a separate backtest engine."""
 from datetime import date
 from pathlib import Path
 

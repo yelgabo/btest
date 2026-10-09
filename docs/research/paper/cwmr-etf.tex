@@ -14,7 +14,7 @@
 
 
 \title{Does Online Mean-Reversion Beat Equal Weight?\\
-A Reproduction and Pre-Registered Tests on US-Listed ETFs}
+A Reproduction and Tests of CWMR on US-Listed ETFs}
 \author{Yelnil Gabo}
 \date{October 8, 2026\\[2pt] \small Working paper}
 
@@ -26,16 +26,19 @@ A Reproduction and Pre-Registered Tests on US-Listed ETFs}
 wealth hundreds to over a thousand times on NASDAQ-100 stocks over 1998--2009. We reproduce
 their tables exactly from their code and data, then test their variant of Confidence-Weighted
 Mean Reversion (CWMR) on 16 liquid US-listed ETFs over 1999--2024, deciding on each session's
-close and trading at the next session's open. Traded daily, it returns 12.1\% a year at 0.7 basis
-points per dollar traded, against 8.4\% for an equal-weight portfolio of the same ETFs and 8.1\%
-for SPY, but it trades 170 times its account a year and its lead over equal weight is gone at
-2.2 basis points. Learning from weekly prices gives the same return with less trading
-(break-even 5.2 basis points), and most of that lead disappears if each trade is made one
-session later. After correcting for the comparisons made, no variant's Sharpe ratio is
-significantly higher than equal weight's or SPY's (smallest Holm-adjusted $p = 0.11$). Weekly
-and monthly variants passed a pre-registered test against SPY that equal weight also passes,
-and a monthly variant chosen on recent data failed its pre-registered test on 2025--2026. We
-find no statistically significant edge over holding the same ETFs.
+close and trading at the next session's open. We charge 0.7 basis points per dollar traded, the
+average half-spread we measured at 15:45 in 2016--2024; spreads at the open in earlier years
+were not measured and were likely wider. Traded daily, CWMR returns 12.1\% a year against 8.4\%
+for an equal-weight portfolio of the same ETFs and 8.1\% for SPY, but it trades 170 times its
+account a year, its lead over equal weight is gone at 2.2 basis points, and the lead comes
+almost entirely from 1999--2008. Learning from weekly prices gives the same return with less
+trading (break-even 5.2 basis points), and most of that lead disappears if each trade is made
+one session later. Before correction the return leads have $p \approx 0.02$; after correcting
+for the nine comparisons we report, no return or Sharpe ratio difference is significant
+(smallest Holm-adjusted $p$ 0.085 and 0.11). Weekly and monthly variants passed a pre-registered
+test against SPY that equal weight also passes, and a monthly variant chosen on recent data
+failed its pre-registered test on 2025--2026. We find no statistically significant edge over
+holding the same ETFs.
 \end{abstract}
 
 \section{Introduction}
@@ -58,8 +61,9 @@ they ignore trading costs and that the period may not represent recent markets.
 
 The question here is whether any version of their CWMR survives trading costs and timing on
 instruments a retail investor can buy today. The backtests use btest, the author's backtesting
-software, and every table on the ETFs except the holdout is also computed by an independent
-replication from public data.
+software. Every result on the ETFs except the spread table and the holdout is also computed from
+public data by a separate backtest engine written for the replication; it ports the same
+algorithm code, so the agreement checks the backtests, not a second implementation of CWMR.
 
 \paragraph{Related work.} Trading costs have been studied in this literature from the start.
 \citet{blum1999} extend universal portfolios to proportional costs, \citet{li2011cwmr} report
@@ -78,8 +82,8 @@ equal-weight portfolio is a hard benchmark for optimised portfolios in general
 \citep{demiguel2009}.
 
 Beyond \citet{moon2019}, this paper adds an exact reproduction of a recent paper, which
-uncovers defects in its code; a test on index and sector ETFs rather than stocks, with spreads
-measured from quotes and fills that could have been executed; equal weight in the same funds as
+uncovers defects in its code; a test on index and sector ETFs rather than stocks, filling at the
+first published price after each decision and with spreads measured from quotes; equal weight in the same funds as
 the benchmark; and confirmatory tests specified before they were run, with the deviations from
 that plan reported.
 Section~\ref{sec:data}
@@ -115,7 +119,7 @@ identity), it computes
 \end{align}
 where $\Pi_\Delta$ projects onto non-negative weights that sum to one. Because $\epsilon = 0.89$,
 the update fires unless the portfolio falls more than 11\% in one period; in the weekly
-1999--2024 run it fired on all but 0.4\% of its 2,919 updates (learning from 1995). Assets that rose most lose the most weight.
+1999--2024 run it fired on all but 6 of its 1,563 updates. Assets that rose most lose the most weight.
 
 We test four schedules (Table~\ref{tab:schedules}).
 
@@ -140,25 +144,29 @@ The universe is 16 ETFs: SPY, QQQ, IWM, DIA, EFA, EEM and ten Select Sector SPDR
 XLV, XLE, XLI, XLY, XLP, XLU, XLB, XLRE). EFA and EEM hold non-US stocks and XLRE holds real
 estate. The ETFs launched between 1993 and 2015, so the universe grows over time: it has 11
 members in January 1999 and reaches 16 in October 2015. A fund joins on its first day in the
-Yahoo data, which for IWM, EFA and EEM is a few sessions after launch. Before that it holds no
+Yahoo data, which for IWM, EFA and EEM is shortly after launch. Before that it holds no
 weight. With fewer than two funds trading the algorithm makes no decision and the account stays
 in cash. Until a fund trades, the algorithm gives it the average price
 ratio of the funds that do and splits its weight equally among them, which gives the same
 portfolio return, so the algorithm runs on the whole universe from the start and keeps what it
-has learned when a fund joins. The universe is a set of large, liquid ETFs chosen in 2026. Funds
+has learned when a fund joins. Until DIA starts trading in January 1998 every fund carries
+SPY's price ratio, so the weights stay equal and learning in effect starts then. The universe is a set of large, liquid ETFs chosen in 2026. Funds
 that existed in earlier years and later closed or shrank are not in it, which favours any strategy
 that holds these funds, including the equal-weight benchmark.
 
 Prices are Yahoo daily bars adjusted for dividends and splits, from 1995 so the algorithm has
 history to learn from before 1999. A strategy decides on a session's close and fills at the next
-session's open, the first price after its decision. Results cover 1999-01-01 to 2024-12-31;
+session's open, the first price after its decision; in practice this would be a market-on-open
+order. The open is a single published price. For these ETFs' early years we cannot check it
+against an opening auction, and the model fills every order at it, including on disorderly days
+such as 24 August 2015, when XLK traded 15\% below its open within the session. Results cover 1999-01-01 to 2024-12-31;
 2025 onward is a holdout (Section~\ref{sec:holdout}), which used Alpaca minute bars and trades
 at 15:45 New York time, as the author's paper-trading system does.
 
 \subsection{Costs and benchmarks}
 
 Every dollar traded pays a flat cost in basis points (bp), plus the SEC fee on sales (the 2026
-rate of \$20.60 per million dollars sold, applied to all years). Turnover is dollars bought plus dollars sold per year,
+rate of \$20.60 per million dollars sold, applied to all years, although the rate varied). Turnover is dollars bought plus dollars sold per year,
 divided by average equity. We
 measured half-spreads at 15:45 from Alpaca quotes on 45 sessions in 2016--2024, five chosen at
 random in each year (Table~\ref{tab:spreads}).
@@ -198,7 +206,7 @@ moving-block bootstrap \citep{kunsch1989} with 21-day blocks and 10,000 draws, w
 interval for the annual Sharpe difference, and show how its $p$-values change with the block
 length. The bootstrap is not studentised; \citet{ledoit2008} propose a studentised version for
 this problem. We give Holm-adjusted $p$-values for the nine comparisons of
-Table~\ref{tab:tests}. The tests compare Sharpe ratios of raw returns; the tables report Sharpe
+Table~\ref{tab:tests}; they do not correct for the wider search described below. The tests compare Sharpe ratios of raw returns; the tables report Sharpe
 ratios in excess of the 3-month Treasury bill rate.
 
 Three tests were pre-registered: each plan was written into the research log and committed to
@@ -210,21 +218,25 @@ records the push at 10:06:06 UTC and the backtest database records the run at 10
 the 1995--2015 plan (commit \texttt{d9a912d}), GitHub records the push at 08:12:12 UTC, before
 the results commit at 08:12:49 UTC by the author's clock. For the 1999--2015 plan (commit
 \texttt{97b0d4a}) there is no third-party record; the order rests on commit times set by the
-author's machine, public in the btest repository. Everything in
-Sections~\ref{sec:results} to~\ref{sec:weekly} is exploratory. All four schedules were
-run on 2016--2024 minute data before the 1999--2015 plan was written, so those years are not out
-of sample for any of them. The 2025 onward holdout had been used by two unrelated
+author's machine, public in the btest repository. The order of the work matters for what is out of
+sample. We first ran the original paper's strategy families on 2016--2024 minute data, chose
+the monthly schedule with a daily signal, and pre-registered it for the 2025 holdout, where it
+failed (Section~\ref{sec:holdout}). Only then did we try weekly and monthly bars on 2016--2024;
+weekly bars beat SPY there with calendar weeks but not at any of five other week-end offsets.
+Next came the 1995--2015 and 1999--2015 plans (Section~\ref{sec:deviations}). Everything in
+Sections~\ref{sec:results} to~\ref{sec:weekly} came after and is exploratory, and 2016--2024 is
+not out of sample for any schedule. The 2025 onward holdout had been used by two unrelated
 single-ETF strategies before this study and by one test in it.
 
 \section{Reproducing the original paper}\label{sec:repro}
 
 The authors' repository contains their data, 93 NASDAQ-100 stocks from 1998-01-02 to
-2009-12-31. Running their functions reproduces Tables~3 and~4 of \citet{lahanis2025} exactly: CWMR 1,590.38$\times$,
+2009-12-31. Running their functions reproduces their Tables~3 and~4 \citep{lahanis2025} exactly: CWMR 1,590.38$\times$,
 PAMR 788.26$\times$, Anticor 36.89$\times$, FTRL 15.25$\times$ and the equal-weight constant
 rebalanced portfolio (CRP) 12.16$\times$.
 
 The paper describes walk-forward validation of its parameters, but the validation windows lie
-inside 1998--2009 and its Tables~3 and~4 report the whole sample, so these are in-sample
+inside 1998--2009 and their Tables~3 and~4 report the whole sample, so these are in-sample
 results. Within
 the sample, mean reversion keeps much of its return under frictions (Table~\ref{tab:paper}).
 
@@ -255,7 +267,7 @@ CWMR's final wealth.
 \section{CWMR on the ETFs, 1999--2024}\label{sec:results}
 
 Table~\ref{tab:main} runs the four schedules of Table~\ref{tab:schedules} and both benchmarks
-over 1999--2024 at 0.7~bp per dollar traded. The algorithm learns from 1995 throughout.
+over 1999--2024 at 0.7~bp per dollar traded.
 
 \begin{table}[ht]
 \centering
@@ -281,40 +293,48 @@ period (8.37\% against 8.09\%).
 
 \begin{table}[ht]
 \centering
-\caption{Paired Sharpe ratio tests, 1999--2024: annual Sharpe difference, Jobson--Korkie--Memmel
-$p$, block-bootstrap $p$ (21-day blocks) and 95\% bootstrap interval.}\label{tab:tests}
-\begin{tabular}{lrrrr}
+\caption{Paired Sharpe ratio tests, 1999--2024: annual difference in Sharpe ratios of raw returns,
+Jobson--Korkie--Memmel $p$, block-bootstrap $p$ (21-day blocks), its Holm adjustment for the
+nine comparisons, and the 95\% bootstrap interval.}\label{tab:tests}
+\begin{tabular}{lrrrrr}
 \toprule
- & Difference & JKM $p$ & Bootstrap $p$ & 95\% interval \\
+ & Difference & JKM $p$ & Bootstrap $p$ & Holm & 95\% interval \\
 \midrule
-Daily vs EW & $+0.13$ & 0.09 & 0.066 & $[-0.01, +0.27]$ \\
-Monthly, daily signal vs EW & $-0.05$ & 0.53 & 0.45 & $[-0.18, +0.07]$ \\
-Monthly bars vs EW & $+0.05$ & 0.46 & 0.40 & $[-0.07, +0.18]$ \\
-Weekly bars vs EW & $+0.12$ & 0.14 & 0.083 & $[-0.02, +0.27]$ \\
-Daily vs SPY & $+0.15$ & 0.06 & 0.043 & $[+0.01, +0.30]$ \\
-Monthly, daily signal vs SPY & $-0.03$ & 0.73 & 0.66 & $[-0.16, +0.10]$ \\
-Monthly bars vs SPY & $+0.07$ & 0.38 & 0.28 & $[-0.06, +0.22]$ \\
-Weekly bars vs SPY & $+0.14$ & 0.10 & 0.031 & $[+0.02, +0.28]$ \\
-EW vs SPY & $+0.02$ & 0.63 & 0.55 & $[-0.04, +0.09]$ \\
+Daily vs EW & $+0.13$ & 0.09 & 0.066 & 0.46 & $[-0.01, +0.27]$ \\
+Monthly, daily signal vs EW & $-0.05$ & 0.53 & 0.45 & 1 & $[-0.18, +0.07]$ \\
+Monthly bars vs EW & $+0.05$ & 0.46 & 0.40 & 1 & $[-0.07, +0.18]$ \\
+Weekly bars vs EW & $+0.12$ & 0.14 & 0.083 & 0.50 & $[-0.02, +0.27]$ \\
+Daily vs SPY & $+0.15$ & 0.06 & 0.043 & 0.35 & $[+0.01, +0.30]$ \\
+Monthly, daily signal vs SPY & $-0.03$ & 0.73 & 0.66 & 1 & $[-0.16, +0.10]$ \\
+Monthly bars vs SPY & $+0.07$ & 0.38 & 0.28 & 1 & $[-0.06, +0.22]$ \\
+Weekly bars vs SPY & $+0.14$ & 0.10 & 0.031 & 0.28 & $[+0.02, +0.28]$ \\
+EW vs SPY & $+0.02$ & 0.63 & 0.55 & 1 & $[-0.04, +0.09]$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 None of the Sharpe differences against equal weight is significant (Table~\ref{tab:tests}).
 Against SPY, daily and weekly bars have bootstrap $p$-values below 0.05 but Jobson--Korkie--Memmel
-$p$-values of 0.06 and 0.10. The bootstrap $p$ depends on the block length: the daily return
-difference between each variant and equal weight is negatively autocorrelated (lag-1 $-0.04$ to
-$-0.09$), so short blocks overstate its variance and longer blocks give smaller $p$-values. With
-126-day blocks, weekly bars reaches 0.048 against equal weight and 0.012 against SPY. After a
-Holm correction for the nine comparisons, the smallest $p$ at any block length is 0.11 (weekly
-bars against SPY, 126-day blocks), and against equal weight it is 0.35.
+$p$-values of 0.06 and 0.10. The bootstrap $p$ depends on the block length. The daily return
+difference between each variant and equal weight is negatively autocorrelated over several weeks
+(for weekly bars, lag-1 $-0.06$ and variance ratios of 0.68 at 21 days and 0.50 at 126), so short
+blocks overstate its variance and longer blocks mostly give smaller $p$-values. With 126-day
+blocks, weekly bars reaches 0.048 against equal weight and 0.012 against SPY. After a Holm
+correction for the nine comparisons, the smallest $p$ at any block length is 0.11 (weekly bars
+against SPY, 126-day blocks), and against equal weight it is 0.35.
+
+Returns tell a slightly stronger story than Sharpe ratios. With the same bootstrap on daily log
+returns, daily CWMR's lead over equal weight is $+3.4$ percentage points a year (95\% interval
+$+0.6$ to $+6.3$, $p = 0.021$), and weekly bars' the same ($+0.6$ to $+6.3$, $p = 0.021$).
+After a Holm correction for the nine comparisons the smallest $p$ is 0.085 (weekly bars against
+SPY) and against equal weight 0.15.
 
 \section{Costs}\label{sec:costs}
 
 The flat 0.7~bp is the average half-spread we measured at 15:45 in 2016--2024
-(Table~\ref{tab:spreads}). These strategies trade at the open, and over years in which we did not measure spreads at all.
-Table~\ref{tab:costs} shows each schedule at higher costs, and the cost at which its return
-falls to equal weight's or SPY's.
+(Table~\ref{tab:spreads}). These strategies trade at the open, and over years in which we did
+not measure spreads at all. Table~\ref{tab:costs} shows each schedule at higher costs, and the
+cost at which its return falls to equal weight's or SPY's.
 
 \begin{table}[ht]
 \centering
@@ -332,18 +352,33 @@ Weekly bars & 12.10\% & 8.50\% & 4.46\% & $-3.17$\% & 5.2 & 5.5 \\
 \end{tabular}
 \end{table}
 
-Daily CWMR's lead needs costs at the open below about 2~bp per dollar traded for 26 years, and
-weekly bars below about 5~bp. Monthly bars can bear 16~bp, but its Sharpe ratio is no better than
-equal weight's. Estimating historical spreads from daily prices does not work at this scale. We
-applied the efficient estimator of \citet{ardia2024}, which its authors show improves on the
-earlier high--low estimators of \citet{corwin2012} and \citet{abdi2017}, to each ETF's daily
-open, high, low and close in each year. On 2016--2024, where half-spreads were measured at 0.17
-to 1.68~bp, its yearly estimates range from $-34$ to $+74$~bp and its medians by ETF from $-11$
-to $+17$~bp; for SPY it gives 11.9~bp against a measured 0.17~bp. Daily price noise swamps
-spreads this small, so the estimates for earlier years cannot be used. Commissions add to this:
-weekly bars made 238 to 313 trades a year in 1999--2001, and at the 1999 average commission of
-the ten largest online brokers, \$15.75 a trade \citep{sec1999}, that is roughly a fifth to a
-quarter of a \$20,000 account each year.
+Turnover in Table~\ref{tab:main} is dollars traded over average equity, which weights the later,
+larger years. Measured year by year, the daily schedule traded 230 times its account in an
+average year and 358 to 410 times in each year from 1999 to 2005, which is why each basis point
+costs it more than 170 turnover suggests.
+
+Where each lead comes from matters for whether these costs were achievable. Daily CWMR's lead
+over equal weight comes almost entirely from 1999--2008, when it returned 10.3\% a year against
+1.7\%; over 2009--2024 it returned 13.3\% against equal weight's 12.8\% and SPY's 14.5\%. Until
+2001 US prices moved in sixteenths of a dollar, so a one-tick spread on a \$50 fund meant a
+half-spread of 6.25~bp, almost three times the 2.2~bp the daily lead can bear. Weekly bars' lead comes mostly from 2009--2024
+(18.0\% against 12.8\%; 3.2\% against 1.7\% over 1999--2008), which includes the 2016--2024 years
+on which it was chosen. Monthly bars can bear 16~bp, but its Sharpe ratio is not significantly
+better than equal weight's ($p = 0.40$).
+
+Estimating historical spreads from daily prices does not work at this scale. We applied the
+efficient estimator of \citet{ardia2024}, which its authors show improves on the earlier
+high--low estimators of \citet{corwin2012} and \citet{abdi2017}, to each ETF's daily open, high,
+low and close in each year. On 2016--2024, where half-spreads were measured at 0.17 to 1.68~bp,
+its yearly estimates range from $-34$ to $+74$~bp and its medians by ETF from $-11$ to $+17$~bp;
+for SPY it gives 11.9~bp against a measured 0.17~bp. Daily price noise swamps spreads this small,
+so the estimates for earlier years cannot be used.
+
+Commissions add to this. At the 1999 average commission of the ten largest online brokers,
+\$15.75 a trade \citep{sec1999}, the daily schedule's 1,000 to 1,190 trades a year in 1999--2001
+would have cost \$15,750 to \$18,700 a year, most of a \$20,000 account, and weekly bars' 238 to
+313 trades a fifth to a quarter of it. The backtest also buys fractional shares, which retail
+brokers did not offer then.
 
 \section{The weekly variant}\label{sec:weekly}
 
@@ -385,14 +420,15 @@ session should cost little. Filling at the open two sessions after the signal in
 lowers weekly bars from 12.10\% to 9.51\% a year (Sharpe 0.44), and the bootstrap $p$ against
 equal weight rises from 0.083 to 0.84. Most of the lead comes from the first session after the
 signal. Regressing each ETF's return in excess of SPY's on its excess return over the signal
-week gives $+0.10$~bp per 1\% move from the signal's close to the next open and $-3.3$~bp from
-that open to the open after. The reversal is between consecutive opens, which a trader can
-capture, so the cost of trading at the open, which we have not measured, decides whether the
-lead was real.
+week gives $+0.1$~bp per 1\% move from the signal's close to the next open and $-3.3$~bp from
+that open to the open after (standard errors 0.6 and 1.2~bp, clustered by week). The reversal is
+between consecutive opens, so the cost of trading at the open, which we have not measured,
+decides whether the lead was real.
 
 \section{The holdout}\label{sec:holdout}
 
-Before the tests above, we searched for a lower-turnover variant on 2016--2024 minute data,
+The first step of the work (Section~\ref{sec:data}) was a search for a lower-turnover variant
+on 2016--2024 minute data,
 deciding at 15:30 and trading at 15:45: the paper's 13 strategy families with daily trading,
 with a daily signal and monthly trades, and with monthly bars, 38 configurations in all. CWMR
 with a daily signal and monthly trades did best there, 18.3\% a year against SPY's 14.5\%, so we
@@ -413,7 +449,7 @@ Max drawdown & $-20.3$\% & $-18.7$\% \\
 \end{tabular}
 \end{table}
 
-The paired $p$ was 0.77, and the strategy beat SPY in 8 of 21 months. With 438 sessions the test
+The paired $p$ was 0.77, and the strategy beat SPY in 8 of 21 full months. With 438 daily returns the test
 cannot rule out a small edge either way. Over 1999--2024 the same variant returns 7.72\% a year,
 less than both benchmarks (Table~\ref{tab:main}): the lead that selected it does not hold
 over the longer period.
@@ -423,8 +459,10 @@ over the longer period.
 Besides the holdout, two tests were pre-registered. The first asked whether the monthly
 variant's lead over SPY appeared over 1995--2015, filling the years before each ETF launched
 with similar mutual funds and indexes. It passed, returning 11.57\% a year against SPY's 9.33\%,
-but it decided and filled at the same close (see below). We no longer rely on it: with each
-ETF's own history only it returns 6.80\% against SPY's 9.33\%.
+but it decided and filled at the same close (see below). We no longer rely on it. With each
+ETF's own history only it returns 6.80\% against SPY's 9.33\%, mostly because it holds cash
+until DIA gives it a second fund; from its first trade in February 1998 to 2015 it returns
+7.05\% against SPY's 6.03\%.
 
 The second tested weekly and monthly bars on 1999--2015, with CAGR and Sharpe ratio above SPY's
 as the pass criterion. Both passed: weekly bars returned 9.82\% (Sharpe 0.45) and monthly bars
@@ -432,58 +470,65 @@ as the pass criterion. Both passed: weekly bars returned 9.82\% (Sharpe 0.45) an
 and we already knew this basket had beaten SPY over that window when we wrote the plan, so the
 criterion was too easy; equal weight was the right benchmark to name.
 
-Two procedures departed from the plans. The registered designs of both tests decided and filled
+The work departed from the plans in two ways, and one plan contained a false statement. The registered designs of both tests decided and filled
 at each session's close, so each order filled at the closing price its decision had used, which
 no one can trade at. This look-ahead error was worth 1.7 percentage points a year to weekly bars
 on 1999--2015 (11.50\% before the correction). We moved fills to the next session's open and
 reran the 1999--2015 test with nothing else changed; a later correction to how next-open fills were booked required
-one further run, which left CAGR and the pass result unchanged. The holdout plan also stated
-that no strategy had used the holdout window, which was wrong (Section~\ref{sec:data}), and its
-pipeline check judged close-to-close fills equivalent to the 15:45 fills, which missed the
-look-ahead error above.
+one further run, which left CAGR and the pass result unchanged. The holdout plan's pipeline
+check judged close-to-close fills equivalent to the 15:45 fills, which missed the look-ahead
+error above. That plan also stated that no strategy had used the holdout window, which was
+wrong (Section~\ref{sec:data}).
 
 \section{Discussion}\label{sec:discussion}
 
 The original paper's results are real, in the sense that its code computes them correctly from
 its data. On these ETFs, with fills at the next open, the daily and weekly schedules return
-about 4 percentage points a year more than equal weight at 0.7~bp, but neither lead is
-statistically significant after correcting for the comparisons, both need costs at the open
-below a few basis points, and the monthly schedule chosen for the holdout trails both
-benchmarks.
+about 3.7 percentage points a year more than equal weight at 0.7~bp (weekly bars 2.6 averaged
+over the five 5-session offsets), but neither lead is statistically significant after correcting
+for the comparisons, both need costs at the open below a few basis points, the daily lead comes
+from years when such costs were not available, and the monthly schedule chosen for the holdout
+trails both benchmarks.
 
 The weekly gain comes from a one-session reversal between consecutive opens
 (Section~\ref{sec:late}). Daily close-to-close returns of these ETFs in excess of SPY show
-negative next-day autocorrelation (median across the ETFs $-0.036$), which fits bid-ask bounce
-in closing prices \citep{roll1984}; but the strategy's fills are at the open, so bounce in
-closing prices does not explain its gain. Two explanations remain. The reversal may be pay for
-supplying liquidity \citep{nagel2012}, earned only by a trader whose costs at the open are low
-enough; and the variants came out of a search over about 100 configurations across this study
-(an approximate count), which inflates the best result \citep{harvey2016}. The smallest
-unadjusted $p$ in Table~\ref{tab:tests} at any block length is 0.012 ($z \approx 2.5$); the
-expected largest of 100 independent standard normal draws is also about 2.5, so a search of
-this size would often produce it by chance. A deflated Sharpe ratio \citep{bailey2014} would
-make this precise.
+negative next-day autocorrelation (median across the ETFs $-0.036$), which fits bid-ask bounce in
+closing prices \citep{roll1984}; the strategy fills at the open, so bounce in closing prices
+does not explain its gain. Three explanations remain. Opening prices can bounce too: a published
+open may be a single trade at the bid or the ask, and a reversal between opens is then a spread
+the trader pays rather than a return. The reversal may be pay for supplying liquidity
+\citep{nagel2012}, earned only by a trader whose costs at the open are low enough. And the
+variants came out of a search over about 100 configurations across this study (an approximate
+count), which inflates the best result \citep{harvey2016}. The smallest unadjusted $p$ in
+Section~\ref{sec:results} at any block length is 0.012 ($|z| \approx 2.5$); the expected largest
+$|z|$ of 100 independent standard normal draws is about 2.7, so a search of this size would
+often produce it by chance. The configurations are correlated, which lowers that expected
+maximum, so this is only a rough guide; a deflated Sharpe ratio \citep{bailey2014} would make it
+precise.
 
 Before calling either schedule an edge we would need:
 \begin{enumerate}
   \item spreads for these ETFs at the open over 1999--2024, measured from historical quote
         data, to replace the flat cost;
   \item a pre-registered test against equal weight, not SPY, on data no variant has touched. The
-        2025 holdout has been used once; data from 2027 on would be clean;
+        2025 holdout has been used by one test of this study and by two earlier strategies; data
+        from 2027 on would be clean;
   \item results after commissions for a stated account size, and after tax for taxable
-        accounts. At 76$\times$ turnover or more almost every gain is short-term.
+        accounts. At 76$\times$ turnover or more almost every gain is short-term, and wash-sale
+        rules would disallow many losses.
 \end{enumerate}
 
 \section{Conclusion}
 
 We reproduced a publicly released set of mean-reversion results exactly, then tested the
 strongest algorithm on liquid ETFs over 1999--2024. Traded daily or on weekly bars it returns
-about 4 percentage points a year more than an equal-weight portfolio of the same ETFs at
-0.7~bp, but the lead needs costs at the open below about 2 and 5~bp respectively, the weekly
-lead mostly disappears if trades are made one session later, and no Sharpe ratio difference is
-significant after correcting for the comparisons. The variant selected on recent data trails
-both benchmarks over 1999--2024 and failed its pre-registered holdout test. We find no
-statistically significant edge for this CWMR variant over holding the same ETFs.
+about 3.7 percentage points a year more than an equal-weight portfolio of the same ETFs at
+0.7~bp. The daily lead needs costs at the open below about 2~bp and comes almost entirely from
+1999--2008, when costs were higher; the weekly lead needs costs below about 5~bp and mostly
+disappears if trades are made one session later. Neither the return nor the Sharpe ratio
+difference is significant after correcting for the comparisons. The variant selected on recent
+data trails both benchmarks over 1999--2024 and failed its pre-registered holdout test. We find
+no statistically significant edge for this CWMR variant over holding the same ETFs.
 
 \section*{Data and code availability}
 

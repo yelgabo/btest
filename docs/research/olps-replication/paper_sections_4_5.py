@@ -1,7 +1,8 @@
-"""Numbers for the working paper's Sections 4 and 5 and its deviations section that no other
-script prints: daily and monthly CWMR against equal weight and SPY on 2016-2024 minute data,
-with paired Sharpe tests, and monthly CWMR run continuously on long history from 1995 (website
-runs 84 and 85). The tests match the replication repository's cwmr_etf.stats."""
+"""Numbers for the working paper's Sections 7 and 8 that need btest data: daily and monthly CWMR
+against equal weight and SPY on 2016-2024 minute data (the search that chose the holdout
+variant), with paired Sharpe tests, and monthly CWMR on long history from 1995 (website runs 84
+and 85), also measured from its first fill. The tests match the replication repository's
+cwmr_etf.stats."""
 import math
 from datetime import date
 from pathlib import Path
@@ -130,6 +131,11 @@ for end in (S2016, S2025):
     st = metrics.compute(eq, rates)
     print(f"  1995-{end.year - 1}: CAGR {st['cagr']:.2%} vs SPY {bench['cagr']:.2%}; "
           f"first trade {r.fills[0].ts.date() if r.fills else None}")
+    if end == S2016 and r.fills:
+        first = r.fills[0].ts.date()
+        d, v = window(eq, "equity", first, end)
+        _, b = window(eq, "benchmark", first, end)
+        print(f"  from the first fill to 2015: CAGR {cagr(d, v):.2%} vs SPY {cagr(d, b):.2%}")
     if end == S2025:
         for name, (_, e) in runs.items():
             d, v = window(e, "equity", S2016, S2025)

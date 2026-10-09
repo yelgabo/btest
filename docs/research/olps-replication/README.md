@@ -26,6 +26,8 @@ uv run --with scipy --with pandas --with cvxpy python docs/research/olps-replica
 | `monthly.py` | Every OLPS strategy on the 16 ETFs, 2016-2024: daily, daily signal traded at month end, monthly bars | btest database and bars |
 | `monthly_robustness.py` | Monthly CWMR and Anticor: 21 trading offsets, yearly restarts, paired Sharpe tests | btest database and bars |
 | `weekly.py` | As `monthly.py` with weeks, then the robustness checks for weekly CWMR | btest database and bars |
+| `holdout_run73.py` | The working paper's holdout table, read from stored website run 73 (nothing is rerun on 2025 onward) | btest database |
+| `paper_sections_4_5.py` | The 2016-2024 minute-data search figures and monthly CWMR on long history from 1995, including from its first fill (paper Sections 7 and 8) | btest database and bars |
 | `paper_1999_2024.py` | The working paper's Table 4 on btest's engine: four CWMR schedules, equal weight and SPY, 1999-2024 on long history | btest database (`btest longhist`) |
 | `bars_1999.py` | Monthly and weekly bars, equal weight and SPY, 1999-2015 on long history; paired tests; higher costs | btest database (`btest longhist`) |
 | `weekly_offsets_longhist.py` | Weekly-bars CWMR at each of the 5 week-end offsets, 1999-2024 on long history | btest database (`btest longhist`) |
