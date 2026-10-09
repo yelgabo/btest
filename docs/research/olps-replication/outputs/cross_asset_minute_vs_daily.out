@@ -1,0 +1,7 @@
+2016-01-01 to 2025-01-01; minute = btest bars, live timing; daily = long history from 2016-01-01
+                                       minute CAGR  Sharpe   max DD    daily CAGR  Sharpe   max DD
+CWMRWeeklyOpen (run 97)                     12.92%    0.69   -33.4%        13.14%    0.70   -34.0%
+EqualWeightOpen (run 98)                     9.97%    0.60   -26.6%         9.96%    0.60   -26.8%
+GTAACrossAsset (run 99)                      6.19%    0.53   -14.5%         6.24%    0.52   -16.3%
+InverseVolCrossAsset (run 100)               6.94%    0.54   -20.9%         7.03%    0.55   -21.1%
+EqualWeightCrossAsset (run 101)             10.64%    0.65   -26.6%        10.71%    0.65   -26.7%

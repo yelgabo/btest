@@ -5,6 +5,8 @@ symbols = [
     "LQD", "HYG",
     # Select Sector SPDRs. XLRE starts 2015-10, XLC 2018-06.
     "XLK", "XLF", "XLV", "XLE", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC",
+    # The rest of the cross-asset set in strategies/olps/cwmr_weekly_open.py.
+    "SMH", "XBI", "KRE", "XME", "USO", "DBA", "FXI", "EWJ",
 ]
 history_start = 2016-01-01
 data_dir = "data"

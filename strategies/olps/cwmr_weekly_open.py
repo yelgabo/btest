@@ -6,8 +6,9 @@ BROAD = ("SPY", "QQQ", "IWM", "TLT", "IEF", "HYG")
 class CWMRWeeklyOpen(OnlineStrategy):
     """The NYU paper's CWMR on a cross-asset set of 15 ETFs, learning from week-over-week price
     ratios measured open to open: each week's first session's open against the previous week's.
-    It decides on that open and fills at the same session's close, the first price after the
-    decision. Costs rise for earlier years and for narrower funds; the schedule is an assumption
+    On long history (longhist_open) it decides on that open and fills at the same session's
+    close, the first price after the decision; on btest minute bars it decides at 15:30 on that
+    day's open and fills at 15:45. Costs rise for earlier years and for narrower funds; the schedule is an assumption
     from outside estimates, not measured spreads. Funds join on their first trading day, so
     before 2004 the set is mostly SPY, QQQ, IWM and EWJ. Exploratory, chosen after the working
     paper's results; not pre-registered."""
@@ -18,7 +19,9 @@ class CWMRWeeklyOpen(OnlineStrategy):
     price = "open"
     anchor = "first"
     rebalance = "week_start"
-    data = "longhist_open"
+    # Needs real opens: long history deciding on the close gives every price as the close. On
+    # btest minute bars it decides at 15:30 on today's open and fills at 15:45.
+    data = ("longhist_open", "btest")
     # bps per dollar traded by year and fund; the first match wins.
     slippage_schedule = [
         (1999, 2002, [], 5.0),

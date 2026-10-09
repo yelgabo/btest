@@ -687,3 +687,15 @@ count T-bill interest as a reward for risk, trend against equal weight is +0.32 
 0.034-0.057 (Holm 0.17-0.29). No return lead is significant (smallest Holm-adjusted p 0.51).
 The trend strategy's much smaller worst fall rests on two episodes (2000-2002, 2008) and is not
 tested by these methods.
+
+## 2026-10-09: the cross-asset strategies on minute bars, 2016-2024
+
+The five cross-asset strategies (open-to-open CWMR, trend, inverse volatility and both equal
+weights) on btest minute bars with the live timing, deciding at 15:30 and filling at 15:45 (runs
+97-101), and on long-history daily bars over the same window from the same 2016 start
+(`cross_asset_minute_vs_daily.py`, `outputs/cross_asset_minute_vs_daily.out`). The two agree to
+within 0.2 points of CAGR and 0.01 of Sharpe for every strategy, so the timing does not drive the
+results. The window does: over 2016-2024 open-to-open CWMR returns 12.92% against equal weight's
+9.97% and SPY's 14.46%, while over 1999-2024 it trails equal weight (4.11% against 6.31%). Trend
+returns 6.19% with a -14.5% worst fall against equal weight's 10.64% and -26.6%. 2016-2024 is the
+period the earlier variants were chosen on, and no paired tests were run on these runs.

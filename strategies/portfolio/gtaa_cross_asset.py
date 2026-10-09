@@ -7,14 +7,16 @@ class GTAACrossAsset(Strategy):
     """Trend filter on 15 cross-asset ETFs (Faber's GTAA rule): at each month end, hold 1/15 of
     the account in every fund whose month-end close is above the average of its last 10
     month-end closes, and keep the other slices in cash at the T-bill rate. A fund without 10
-    month-ends of history stays in cash. Decides on the close, fills at the next open. Costs
+    month-ends of history stays in cash. On long history it decides on the month's last close
+    and fills at the next open; on minute bars it decides at 15:30 on the month's last session
+    and fills at 15:45. Costs
     follow the schedule of olps/cwmr_weekly_open; universe and schedule are copied there and
     in the other cross-asset strategies, so keep them the same."""
 
     universe = ["SPY", "QQQ", "IWM", "SMH", "XBI", "KRE", "XME", "TLT", "IEF", "HYG", "GLD",
                 "USO", "DBA", "FXI", "EWJ"]
     rebalance = "month_end"
-    data = "longhist"
+    data = ("longhist", "btest")
     slippage_schedule = [
         (1999, 2002, [], 5.0),
         (2003, 2012, [], 2.5),

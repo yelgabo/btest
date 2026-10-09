@@ -6,13 +6,14 @@ BROAD = ("SPY", "QQQ", "IWM", "TLT", "IEF", "HYG")
 class EqualWeightCrossAsset(Strategy):
     """Equal weight in the 15 cross-asset ETFs that have started trading, reset at each month
     end; the benchmark for portfolio/gtaa_cross_asset and risk/inverse_vol_cross_asset, on the
-    same timing (decide on the close, fill at the next open) and costs (universe and schedule
+    same timing (long history: decide on the close, fill at the next open; minute bars: decide at
+    15:30, fill at 15:45) and costs (universe and schedule
     copied from olps/cwmr_weekly_open, keep them the same)."""
 
     universe = ["SPY", "QQQ", "IWM", "SMH", "XBI", "KRE", "XME", "TLT", "IEF", "HYG", "GLD",
                 "USO", "DBA", "FXI", "EWJ"]
     rebalance = "month_end"
-    data = "longhist"
+    data = ("longhist", "btest")
     slippage_schedule = [
         (1999, 2002, [], 5.0),
         (2003, 2012, [], 2.5),

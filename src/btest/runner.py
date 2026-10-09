@@ -182,10 +182,13 @@ def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path,
     first_day, last_day = start.date(), end.date()
     need = list(dict.fromkeys(universe + list({"SPY": ["SPY"], "60/40": ["SPY", "AGG"]}
                                               [pconfig.benchmark])))
-    # A strategy can require a data source (its timing depends on it) and set its own costs.
-    required = getattr(cls, "data", None)
-    if required and pconfig.data != required:
-        raise SystemExit(f"{cls.__name__} runs on data {required!r}; pass --data {required}")
+    # A strategy can limit the data sources it runs on (its timing depends on them) and set its
+    # own costs.
+    allowed = getattr(cls, "data", None)
+    allowed = (allowed,) if isinstance(allowed, str) else tuple(allowed or ())
+    if allowed and pconfig.data not in allowed:
+        raise SystemExit(f"{cls.__name__} runs on data {' or '.join(allowed)}; pass --data "
+                         f"{allowed[0]}")
     schedule = getattr(cls, "slippage_schedule", None)
     if schedule:
         pconfig = replace(pconfig, costs=replace(pconfig.costs, slippage_schedule=tuple(

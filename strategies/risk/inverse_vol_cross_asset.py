@@ -8,14 +8,15 @@ BROAD = ("SPY", "QQQ", "IWM", "TLT", "IEF", "HYG")
 class InverseVolCrossAsset(Strategy):
     """Inverse-volatility weights on 15 cross-asset ETFs: at each month end, weight every fund
     by one over the standard deviation of its last 60 daily returns, normalised to sum to one.
-    Funds without 60 returns of history are left out. No volatility target or leverage. Decides
-    on the close, fills at the next open; costs as in olps/cwmr_weekly_open (universe and
-    schedule copied, keep them the same)."""
+    Funds without 60 returns of history are left out. No volatility target or leverage. On long
+    history it decides on the month's last close and fills at the next open; on minute bars it
+    decides at 15:30 on the month's last session and fills at 15:45. Costs as in
+    olps/cwmr_weekly_open (universe and schedule copied, keep them the same)."""
 
     universe = ["SPY", "QQQ", "IWM", "SMH", "XBI", "KRE", "XME", "TLT", "IEF", "HYG", "GLD",
                 "USO", "DBA", "FXI", "EWJ"]
     rebalance = "month_end"
-    data = "longhist"
+    data = ("longhist", "btest")
     slippage_schedule = [
         (1999, 2002, [], 5.0),
         (2003, 2012, [], 2.5),
