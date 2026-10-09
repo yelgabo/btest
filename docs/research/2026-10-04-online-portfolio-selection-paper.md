@@ -677,5 +677,13 @@ Result, 1999-2024 (runs 94-96): GTAA 5.45% a year, Sharpe 0.51, max drawdown -16
 equal weight 6.21%, Sharpe 0.33, -55.1%; SPY 8.09%, 0.40, -55.2%. The trend filter gives up
 about 0.8 points a year of return against equal weight for a much smaller worst fall (it held
 86% cash at the end of 2008 and none of the funds in October 2022). Inverse volatility and equal
-weight share their worst fall on 2002-10-09, when only four equity funds traded. No paired test
-was run.
+weight share their worst fall on 2002-10-09, when only four equity funds traded.
+
+Paired tests (`cross_asset_tests.py`, `outputs/cross_asset_tests.out`), on returns over T-bills
+because the trend strategy holds T-bills much of the time: trend against equal weight +0.18 in
+Sharpe ratio, JKM p 0.30, bootstrap p 0.24-0.31 across block lengths; no comparison is
+significant before or after a Holm correction for the five comparisons. On raw returns, which
+count T-bill interest as a reward for risk, trend against equal weight is +0.32 with bootstrap p
+0.034-0.057 (Holm 0.17-0.29). No return lead is significant (smallest Holm-adjusted p 0.51).
+The trend strategy's much smaller worst fall rests on two episodes (2000-2002, 2008) and is not
+tested by these methods.

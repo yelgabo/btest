@@ -1,0 +1,37 @@
+1999-01-04 to 2024-12-31, 6540 daily returns
+
+Sharpe difference over T-bills; bootstrap p by block length (1, 5, 21, 63, 126), then Holm over the 5 comparisons at each block length
+  Trend (GTAA) vs Equal weight         +0.18 [21-day 95% interval -0.12, +0.48]  JKM p 0.297
+      p 0.310, 0.265, 0.254, 0.240, 0.259  | Holm 1.000, 1.000, 1.000, 1.000, 1.000
+  Inverse volatility vs Equal weight   -0.02 [21-day 95% interval -0.11, +0.07]  JKM p 0.712
+      p 0.717, 0.685, 0.666, 0.673, 0.694  | Holm 1.000, 1.000, 1.000, 1.000, 1.000
+  Trend (GTAA) vs SPY                  +0.10 [21-day 95% interval -0.19, +0.42]  JKM p 0.561
+      p 0.569, 0.537, 0.501, 0.498, 0.521  | Holm 1.000, 1.000, 1.000, 1.000, 1.000
+  Inverse volatility vs SPY            -0.09 [21-day 95% interval -0.27, +0.10]  JKM p 0.416
+      p 0.412, 0.364, 0.347, 0.352, 0.396  | Holm 1.000, 1.000, 1.000, 1.000, 1.000
+  Equal weight vs SPY                  -0.07 [21-day 95% interval -0.23, +0.09]  JKM p 0.448
+      p 0.448, 0.416, 0.395, 0.386, 0.427  | Holm 1.000, 1.000, 1.000, 1.000, 1.000
+
+Sharpe difference on raw returns; bootstrap p by block length (1, 5, 21, 63, 126), then Holm over the 5 comparisons at each block length
+  Trend (GTAA) vs Equal weight         +0.32 [21-day 95% interval +0.03, +0.63]  JKM p 0.054
+      p 0.057, 0.042, 0.034, 0.034, 0.045  | Holm 0.286, 0.209, 0.171, 0.170, 0.223
+  Inverse volatility vs Equal weight   +0.01 [21-day 95% interval -0.08, +0.10]  JKM p 0.819
+      p 0.822, 0.806, 0.797, 0.804, 0.817  | Holm 1.000, 1.000, 1.000, 1.000, 1.000
+  Trend (GTAA) vs SPY                  +0.27 [21-day 95% interval -0.03, +0.59]  JKM p 0.134
+      p 0.141, 0.111, 0.090, 0.083, 0.108  | Holm 0.566, 0.444, 0.361, 0.331, 0.432
+  Inverse volatility vs SPY            -0.04 [21-day 95% interval -0.23, +0.15]  JKM p 0.704
+      p 0.706, 0.676, 0.661, 0.679, 0.706  | Holm 1.000, 1.000, 1.000, 1.000, 1.000
+  Equal weight vs SPY                  -0.05 [21-day 95% interval -0.22, +0.11]  JKM p 0.555
+      p 0.552, 0.526, 0.503, 0.507, 0.541  | Holm 1.000, 1.000, 1.000, 1.000, 1.000
+
+Annual log-return lead; bootstrap p by block length (1, 5, 21, 63, 126), then Holm over the 5 comparisons at each block length
+  Trend (GTAA) vs Equal weight         -0.72% [21-day 95% interval -5.34%, +4.06%]
+      p 0.784, 0.767, 0.768, 0.759, 0.767  | Holm 1.000, 1.000, 0.977, 0.959, 1.000
+  Inverse volatility vs Equal weight   -0.93% [21-day 95% interval -2.67%, +0.83%]
+      p 0.392, 0.354, 0.298, 0.320, 0.333  | Holm 1.000, 1.000, 0.977, 0.959, 1.000
+  Trend (GTAA) vs SPY                  -2.48% [21-day 95% interval -7.72%, +3.08%]
+      p 0.439, 0.397, 0.363, 0.331, 0.357  | Holm 1.000, 1.000, 0.977, 0.959, 1.000
+  Inverse volatility vs SPY            -2.69% [21-day 95% interval -5.99%, +0.80%]
+      p 0.210, 0.168, 0.122, 0.102, 0.129  | Holm 1.000, 0.838, 0.612, 0.510, 0.644
+  Equal weight vs SPY                  -1.76% [21-day 95% interval -4.63%, +1.29%]
+      p 0.313, 0.269, 0.244, 0.211, 0.257  | Holm 1.000, 1.000, 0.977, 0.846, 1.000
