@@ -13,7 +13,13 @@ def connect(url: str) -> psycopg.Connection:
     return psycopg.connect(url)
 
 
+MIGRATE_LOCK = 0x6274657374  # "btest" in ASCII
+
+
 def migrate(conn: psycopg.Connection) -> list[str]:
+    # The web service and the worker both migrate at start; without the lock both can read the
+    # same pending list and apply a file twice. Held until the commit below.
+    conn.execute("SELECT pg_advisory_xact_lock(%s)", (MIGRATE_LOCK,))
     conn.execute("CREATE TABLE IF NOT EXISTS public.schema_migration "
                  "(name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())")
     done = {r[0] for r in conn.execute("SELECT name FROM public.schema_migration")}

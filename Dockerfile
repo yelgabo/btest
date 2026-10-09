@@ -7,5 +7,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY btest.toml README.md ./
 COPY src ./src
 RUN uv sync --frozen --no-dev
+# Runs as root on purpose. The worker writes Parquet to the Railway volume, which Railway mounts
+# root-owned at start, after the image is built; a non-root USER could not write to it and could
+# not chown it either. The strategy child gets an allowlisted environment, the restricted
+# runner database role and time, CPU and memory limits, but as root it can still read the
+# worker's environment through /proc. Lab access therefore means trusted users only.
 # One image, two Railway services: BTEST_ROLE=worker runs jobs, anything else serves the UI.
 CMD ["sh", "-c", "if [ \"$BTEST_ROLE\" = worker ]; then exec uv run --no-sync btest worker; else exec uv run --no-sync btest ui --host 0.0.0.0 --port ${PORT:-8765}; fi"]

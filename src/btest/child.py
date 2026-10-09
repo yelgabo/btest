@@ -74,7 +74,8 @@ def decide(job: dict, settings, path: Path) -> dict:
 
 def main() -> None:
     job = json.loads(sys.stdin.read())
-    settings = config.load(need_alpaca=False)
+    # The worker hands over a stripped environment; reading .env would add the broker keys back.
+    settings = config.load(need_alpaca=False, dotenv=False)
     if job["kind"] == "decide":
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / f"{job['name'].rsplit('/', 1)[-1]}.py"

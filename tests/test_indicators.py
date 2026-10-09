@@ -103,3 +103,67 @@ def test_web_indicator_endpoint(testdb, tmp_path, monkeypatch):
     r = c.get(f"/api/indicators/{iid}/series?{q}")
     assert r.status_code == 200, r.text
     assert r.json()["params"] == {"length": 5} and len(r.json()["series"]["rsi"]) == 52
+
+
+def script(code, timeout=20, env=None):
+    return run_child([sys.executable, "-c", code], {}, timeout,
+                     env or indicator_run.child_env(), "test")
+
+
+@pytest.mark.parametrize("line, why", [
+    ("BTEST_RESULT {not json", "not JSON"),
+    ("BTEST_RESULT [1, 2]", "expected an object"),
+    ('BTEST_RESULT {"error": 5}', "error has the wrong type"),
+    ('BTEST_RESULT {"run_id": "7"}', "run_id has the wrong type"),
+    ('BTEST_RESULT {"series": {"a": 1}}', "series values must be lists"),
+])
+def test_malformed_result_fails_the_job(line, why):
+    out, _ = script(f"print({line!r})")
+    assert out["error"].startswith("The test sent back a malformed result") and why in out["error"]
+
+
+def test_timeout_kills_grandchildren_too():
+    code = ("import subprocess, sys, time\n"
+            "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+            "print(p.pid, flush=True)\n"
+            "time.sleep(60)\n")
+    out, log = script(code, timeout=1)
+    assert out["error"] == "Stopped after 1 seconds, the limit for a test."
+    pid = int(log.splitlines()[0])
+    for _ in range(40):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        import time
+        time.sleep(0.05)
+    os.kill(pid, 9)
+    raise AssertionError("grandchild survived")
+
+
+def test_cpu_limit_and_output_cap(monkeypatch):
+    from btest import worker_proc
+    assert worker_proc.cpu_limit_s(300, {"POLARS_MAX_THREADS": "4", "NUMBA_NUM_THREADS": "2"}) \
+        == 1210
+    monkeypatch.setattr(worker_proc, "MAX_OUTPUT_CHARS", 100_000)
+    out, log = script("import sys\nfor _ in range(50): sys.stdout.write('x' * 9999 + '\\n')\n"
+                      "print('BTEST_RESULT {\"run_id\": 3}')")
+    assert out == {"run_id": 3} and 0 < len(log) <= 100_000
+
+
+def test_run_child_closes_its_pipes():
+    import gc
+    import warnings
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        out, _ = script("print('BTEST_RESULT {}')")
+        gc.collect()
+    assert out == {}
+    assert not [w for w in caught if issubclass(w.category, ResourceWarning)]
+
+
+def test_cpu_limit_stops_a_busy_child(monkeypatch):
+    from btest import worker_proc
+    monkeypatch.setattr(worker_proc, "cpu_limit_s", lambda timeout, env: 1)
+    out, _ = script("while True: pass", timeout=20)
+    assert out["error"].startswith("The test crashed (it used up its CPU time).")

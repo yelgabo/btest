@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import time
@@ -59,7 +60,7 @@ def create_app() -> Starlette:
     def conn() -> psycopg.Connection:
         return psycopg.connect(settings.database_url)
 
-    async def runs(request: Request):
+    def runs(request: Request):
         with conn() as c:
             rows = c.execute(
                 "SELECT r.id, r.created_at, r.strategy, r.symbols, r.start_ts, r.end_ts, r.params, "
@@ -77,7 +78,7 @@ def create_app() -> Starlette:
             "strategy_id": r[11], "version": r[12], "timeframe": r[13],
         } for r in rows]))
 
-    async def run_detail(request: Request):
+    def run_detail(request: Request):
         run_id = request.path_params["id"]
         with conn() as c:
             r = c.execute(
@@ -111,7 +112,7 @@ def create_app() -> Starlette:
             "fills": [list(f) for f in fills],
         }))
 
-    async def sweeps(request: Request):
+    def sweeps(request: Request):
         with conn() as c:
             rows = c.execute(
                 "SELECT s.id, s.created_at, s.strategy, s.symbol, s.start_ts, s.end_ts, s.grid, "
@@ -125,7 +126,7 @@ def create_app() -> Starlette:
             "duration_s": r[10], "best_sharpe": r[11],
         } for r in rows]))
 
-    async def sweep_detail(request: Request):
+    def sweep_detail(request: Request):
         sweep_id = request.path_params["id"]
         with conn() as c:
             s = c.execute(
@@ -147,7 +148,7 @@ def create_app() -> Starlette:
             "results": [{"params": p, "metrics": m} for p, m in results],
         }))
 
-    async def data(request: Request):
+    def data(request: Request):
         with conn() as c:
             actions = c.execute(
                 "SELECT y.ticker, "
@@ -190,6 +191,19 @@ def create_app() -> Starlette:
     def bad(msg: str, status: int = 400):
         return JSON({"error": msg}, status_code=status)
 
+    def with_body(handler):
+        """Reads the JSON body on the event loop, then runs the handler, which talks to the
+        database synchronously, in the threadpool."""
+        async def endpoint(request: Request):
+            data = None
+            if request.method in ("POST", "PUT", "PATCH"):
+                try:
+                    data = await body(request)
+                except ValueError as e:
+                    return bad(str(e))
+            return await run_in_threadpool(handler, request, data)
+        return endpoint
+
     async def lab_config(request: Request):
         return JSON({
             "symbols": settings.symbols, "history_start": settings.history_start,
@@ -202,10 +216,9 @@ def create_app() -> Starlette:
                          "sec_fee_rate": Costs().sec_fee_rate, "allow_short": False},
         })
 
-    async def strategies(request: Request):
+    def strategies(request: Request, data: dict | None):
         if request.method == "POST":
             try:
-                data = await body(request)
                 with conn() as c:
                     sid = lab.create(c, str(data.get("name", "")), data.get("code"),
                                      str(data.get("kind", "strategy")))
@@ -215,7 +228,7 @@ def create_app() -> Starlette:
         with conn() as c:
             return JSON(lab.list_strategies(c))
 
-    async def strategy(request: Request):
+    def strategy(request: Request, data: dict | None):
         sid = request.path_params["id"]
         try:
             if request.method == "GET":
@@ -227,7 +240,6 @@ def create_app() -> Starlette:
                 with conn() as c:
                     lab.archive(c, sid)
                 return JSON({"ok": True})
-            data = await body(request)
             with conn() as c:
                 if request.method == "PATCH":
                     lab.rename(c, sid, str(data.get("name", "")))
@@ -239,15 +251,17 @@ def create_app() -> Starlette:
                 return JSON(_clean(lab.get(c, sid, version)))
         except LookupError as e:
             return bad(str(e), 404)
-        except ValueError as e:
+        except (TypeError, ValueError) as e:
             return bad(str(e), 409 if "Reload" in str(e) else 400)
 
-    async def jobs(request: Request):
+    def jobs(request: Request, data: dict):
         try:
-            data = await body(request)
             sid, kind = int(data.get("strategy_id", 0)), str(data.get("kind", ""))
+            version = data.get("version")
+            if version is not None and (type(version) is not int or version < 1):
+                return bad("version must be a positive whole number.")
             with conn() as c:
-                s = lab.get(c, sid, data.get("version"))
+                s = lab.get(c, sid, version)
                 if s is None:
                     return bad("That strategy or version does not exist.", 404)
                 if s["kind"] != "strategy":
@@ -262,12 +276,12 @@ def create_app() -> Starlette:
             return bad(str(e))
         return JSON({"id": jid}, status_code=201)
 
-    async def job_detail(request: Request):
+    def job_detail(request: Request):
         with conn() as c:
             j = lab.job(c, request.path_params["id"])
         return JSON(_clean(j)) if j else bad("No such job.", 404)
 
-    async def strategy_jobs(request: Request):
+    def strategy_jobs(request: Request):
         with conn() as c:
             return JSON(_clean(lab.recent_jobs(c, request.path_params["id"])))
 
@@ -288,11 +302,12 @@ def create_app() -> Starlette:
                 r = await client.get(f"{bars_url}/bars", params=args,
                                      headers={"X-Btest-Token": bars_token})
             return Response(r.content, status_code=r.status_code, media_type="application/json")
-        with conn() as c:
-            sym = args["symbol"].upper()
-            out = bars.candles(settings.data_dir, sym, start, end, args["tf"],
-                               db.get_splits(c, sym), db.get_dividends(c, sym))
-        return JSON(out)
+        def local():
+            with conn() as c:
+                sym = args["symbol"].upper()
+                return bars.candles(settings.data_dir, sym, start, end, args["tf"],
+                                    db.get_splits(c, sym), db.get_dividends(c, sym))
+        return JSON(await run_in_threadpool(local))
 
     async def indicator_series(request: Request):
         q = request.query_params
@@ -302,9 +317,11 @@ def create_app() -> Starlette:
                 raise ValueError
         except ValueError:
             return bad("params must be a JSON object.")
-        with conn() as c:
-            v = q.get("version")
-            s = lab.get(c, request.path_params["id"], int(v) if v and v.isdigit() else None)
+        def load():
+            with conn() as c:
+                v = q.get("version")
+                return lab.get(c, request.path_params["id"], int(v) if v and v.isdigit() else None)
+        s = await run_in_threadpool(load)
         if s is None or s["kind"] != "indicator":
             return bad("No such indicator.", 404)
         body = {"code": s["code"], "name": s["name"], "params": params,
@@ -325,7 +342,7 @@ def create_app() -> Starlette:
                                       params, body["symbol"], start, end, body["tf"])
         return JSON(_clean(out), status_code=422 if out.get("error") else 200)
 
-    async def run_fills(request: Request):
+    def run_fills(request: Request):
         q = request.query_params
         try:
             start = datetime.fromisoformat(q.get("start", "")).replace(tzinfo=UTC)
@@ -351,10 +368,11 @@ def create_app() -> Starlette:
         Route("/api/sweeps/{id:int}", sweep_detail),
         Route("/api/data", data),
         Route("/api/lab", lab_config),
-        Route("/api/strategies", strategies, methods=["GET", "POST"]),
-        Route("/api/strategies/{id:int}", strategy, methods=["GET", "PUT", "PATCH", "DELETE"]),
+        Route("/api/strategies", with_body(strategies), methods=["GET", "POST"]),
+        Route("/api/strategies/{id:int}", with_body(strategy),
+              methods=["GET", "PUT", "PATCH", "DELETE"]),
         Route("/api/strategies/{id:int}/jobs", strategy_jobs),
-        Route("/api/jobs", jobs, methods=["POST"]),
+        Route("/api/jobs", with_body(jobs), methods=["POST"]),
         Route("/api/jobs/{id:int}", job_detail),
         Route("/api/candles", candles),
         Route("/api/indicators/{id:int}/series", indicator_series),
@@ -369,9 +387,26 @@ def create_app() -> Starlette:
     return app
 
 
+def check_exposure(host: str) -> None:
+    """Refuse to serve without BTEST_UI_PASSWORD anywhere but loopback: the lab runs whatever
+    code a visitor submits. Call after create_app(), which loads .env."""
+    if os.environ.get("BTEST_UI_PASSWORD"):
+        return
+    try:
+        loopback = ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        loopback = host == "localhost"
+    if not loopback:
+        raise SystemExit(f"Set BTEST_UI_PASSWORD before serving on {host}: without it anyone "
+                         "who can reach the port can run code on this machine.")
+
+
 SESSION_COOKIE = "btest_session"
 SESSION_DAYS = 14
 MAX_FAILS = 10
+# Across all clients, so rotating addresses does not buy more guesses. The cost is that a flood
+# of wrong passwords also blocks the owner's login for the window; existing sessions still work.
+MAX_FAILS_ALL = 50
 FAIL_WINDOW_S = 15 * 60
 
 
@@ -386,6 +421,7 @@ class SessionAuth:
         self.password = password.encode()
         self.key = hashlib.sha256(b"btest-session:" + self.password).digest()
         self.fails: dict[str, list[float]] = {}
+        self.all_fails: list[float] = []
 
     def sign(self, expires: int) -> str:
         mac = hmac.new(self.key, str(expires).encode(), hashlib.sha256).hexdigest()
@@ -400,9 +436,16 @@ class SessionAuth:
 
     def throttled(self, ip: str) -> bool:
         now = time.time()
-        recent = [t for t in self.fails.get(ip, []) if now - t < FAIL_WINDOW_S]
-        self.fails[ip] = recent
-        return len(recent) >= MAX_FAILS
+        self.all_fails = [t for t in self.all_fails if now - t < FAIL_WINDOW_S]
+        self.fails = {k: ts for k, v in self.fails.items()
+                      if (ts := [t for t in v if now - t < FAIL_WINDOW_S])}
+        return (len(self.all_fails) >= MAX_FAILS_ALL
+                or len(self.fails.get(ip, [])) >= MAX_FAILS)
+
+    def failed(self, ip: str) -> None:
+        now = time.time()
+        self.fails.setdefault(ip, []).append(now)
+        self.all_fails.append(now)
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -442,7 +485,7 @@ class SessionAuth:
                                     max_age=SESSION_DAYS * 86400, httponly=True, samesite="strict",
                                     secure=request.url.scheme == "https")
                     return await resp(scope, receive, send)
-                self.fails.setdefault(ip, []).append(time.time())
+                self.failed(ip)
                 error = "That password is wrong."
             resp = HTMLResponse(login_page(error), status_code=401 if error else 200)
             await resp(scope, receive, send)

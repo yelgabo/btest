@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess
 from datetime import UTC, date, datetime, timedelta
@@ -112,7 +111,8 @@ def synthetic_spy(data_dir):
 
 def run_child(job, tmp_path):
     from btest.worker import execute
-    env = {"DATABASE_URL": TEST_DB, "BTEST_DATA_DIR": str(tmp_path)}
+    env = {"DATABASE_URL": TEST_DB, "BTEST_RUNNER_DATABASE_URL": TEST_DB,
+           "BTEST_DATA_DIR": str(tmp_path)}
     old = {k: os.environ.get(k) for k in env}
     os.environ.update(env)
     try:
@@ -178,6 +178,11 @@ def test_web_login_header_guard_and_job_submit(testdb, monkeypatch):
     r = c2.post("/api/jobs", headers=h, json={"strategy_id": sid, "kind": "run", "spec": {
         "symbols": "SPY", "start": "2016-01-01", "end": "2024-01-01"}})
     jid = r.json()["id"]
+    for bad in ({"version": "1"}, {"version": True}, {"version": [1]}):
+        r = c2.post("/api/jobs", headers=h, json={"strategy_id": sid, "kind": "run", **bad})
+        assert r.status_code == 400 and "version" in r.json()["error"]
+    r = c2.put(f"/api/strategies/{sid}", headers=h, json={"code": "x", "base_version": [1]})
+    assert r.status_code == 400
     j = c2.get(f"/api/jobs/{jid}").json()
     assert j["status"] == "queued" and j["spec"]["symbols"] == ["SPY"]
 
@@ -210,3 +215,73 @@ def test_longhist_runs_decide_strategies_from_1995_on_its_own_symbols():
         lab.validate_spec("run", s, SETTINGS, False, ["SPY", "TLT"])
     with pytest.raises(ValueError, match="decide"):
         lab.validate_spec("run", s, SETTINGS, False)
+
+
+def test_worker_fails_a_job_that_breaks_the_worker_and_keeps_going(testdb, monkeypatch):
+    from btest import worker
+    testdb.execute("UPDATE lab.job SET status = 'done' WHERE status = 'queued'")
+    sid = lab.create(testdb, "boom_demo", lab.EXAMPLE)
+    s = lab.get(testdb, sid)
+    first = lab.submit(testdb, s["version_id"], "run", {})
+    second = lab.submit(testdb, s["version_id"], "run", {})
+    calls = iter([RuntimeError("bug in the worker"), {"run_id": None}])
+
+    def execute(job):
+        out = next(calls)
+        if isinstance(out, Exception):
+            raise out
+        return out
+
+    monkeypatch.setattr(worker, "execute", execute)
+    for jid in (first, second):
+        job = worker.claim(testdb, "test:1")
+        assert job["id"] == jid
+        worker.handle(testdb, job)
+    a, b = lab.job(testdb, first), lab.job(testdb, second)
+    assert a["status"] == "failed" and "RuntimeError" in a["error"]
+    assert "bug in the worker" not in a["error"]
+    assert b["status"] == "done"
+
+
+def test_child_env_is_an_allowlist_and_needs_the_runner_role(monkeypatch):
+    from btest import worker
+    monkeypatch.setenv("DATABASE_URL", "postgresql://owner@x/db")
+    monkeypatch.setenv("ALPACA_API_KEY", "k")
+    monkeypatch.setenv("SOME_NEW_SECRET", "s")
+    monkeypatch.setenv("NUMBA_CACHE_DIR", "/tmp/n")
+    monkeypatch.delenv("BTEST_RUNNER_DATABASE_URL", raising=False)
+    with pytest.raises(RuntimeError, match="BTEST_RUNNER_DATABASE_URL"):
+        worker.child_env()
+    assert "BTEST_RUNNER_DATABASE_URL" in worker.execute({"kind": "run"})["error"]
+    monkeypatch.setenv("BTEST_RUNNER_DATABASE_URL", "postgresql://runner@x/db")
+    env = worker.child_env()
+    assert env["DATABASE_URL"] == "postgresql://runner@x/db"
+    assert env["NUMBA_CACHE_DIR"] == "/tmp/n" and "PATH" in env
+    assert not {"ALPACA_API_KEY", "SOME_NEW_SECRET", "BTEST_RUNNER_DATABASE_URL"} & set(env)
+
+
+def test_migrate_twice_at_once_applies_each_file_once(testdb):
+    import threading
+    url = TEST_DB + "_migrate"
+    subprocess.run(["dropdb", "--if-exists", "btest_test_migrate"], check=True,
+                   capture_output=True)
+    subprocess.run(["createdb", "btest_test_migrate"], check=True, capture_output=True)
+    results = []
+
+    def go():
+        with psycopg.connect(url) as c:
+            try:
+                results.append(db.migrate(c))
+            except psycopg.Error as e:
+                results.append(e)
+
+    try:
+        threads = [threading.Thread(target=go) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        subprocess.run(["dropdb", "--if-exists", "btest_test_migrate"], capture_output=True)
+    assert all(isinstance(r, list) for r in results), results
+    assert sorted(len(r) for r in results)[0] == 0 and len(set(sum(results, []))) > 1

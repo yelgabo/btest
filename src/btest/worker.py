@@ -1,11 +1,13 @@
 """Claims lab jobs from Postgres and runs each in a child process with limits. Also keeps the
 bars current: a full ingest when the volume is empty, then once each weekday evening."""
 
+import hmac
 import os
 import socket
 import sys
 import threading
 import time
+import traceback
 from datetime import UTC, datetime
 
 import psycopg
@@ -20,14 +22,23 @@ from btest.sources.alpaca import AlpacaSource
 TIMEOUT_S = {"run": 300, "sweep": 900}
 LOG_CHARS = 6000
 INGEST_HOUR_UTC = 22
+CHILD_ENV_KEEP = ("PATH", "LANG", "LC_ALL", "HOME", "TZ", "TMPDIR", "SYSTEMROOT",
+                  "VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "PYTHONUNBUFFERED",
+                  "PYTHONDONTWRITEBYTECODE", "PYTHONHASHSEED", "BTEST_DATA_DIR",
+                  "POLARS_MAX_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+                  "OPENBLAS_NUM_THREADS")
 
 
 def child_env() -> dict:
+    """An allowlist, so secrets added to the worker later do not reach strategy code. The
+    child connects as the restricted runner role; there is no fallback to the owner URL."""
+    runner_url = os.environ.get("BTEST_RUNNER_DATABASE_URL")
+    if not runner_url:
+        raise RuntimeError("BTEST_RUNNER_DATABASE_URL is not set, so strategy code would have "
+                           "no restricted database role. Set it to run lab jobs.")
     env = {k: v for k, v in os.environ.items()
-           if not k.startswith(("ALPACA_", "BTEST_UI_PASSWORD", "PG", "POSTGRES"))}
-    # The child gets the restricted role when one is configured.
-    env["DATABASE_URL"] = os.environ.get("BTEST_RUNNER_DATABASE_URL") or os.environ["DATABASE_URL"]
-    env.pop("BTEST_RUNNER_DATABASE_URL", None)
+           if k in CHILD_ENV_KEEP or k.startswith("NUMBA_")}
+    env["DATABASE_URL"] = runner_url
     # Polars and numba size their thread pools to the host's CPUs, which on a shared machine is
     # far more than this container gets.
     env.setdefault("POLARS_MAX_THREADS", "4")
@@ -74,8 +85,12 @@ def claim(conn: psycopg.Connection, worker: str) -> dict | None:
 
 
 def execute(job: dict) -> dict:
+    try:
+        env = child_env()
+    except RuntimeError as e:
+        return {"error": str(e)}
     result, log = run_child([sys.executable, "-m", "btest.child"], job,
-                            TIMEOUT_S[job["kind"]], child_env(), job["kind"])
+                            TIMEOUT_S[job["kind"]], env, job["kind"])
     result["log"] = log
     return result
 
@@ -89,6 +104,23 @@ def finish(conn: psycopg.Connection, jid: int, result: dict) -> None:
          result.get("run_id"), result.get("sweep_id"), jid),
     )
     conn.commit()
+
+
+def handle(conn: psycopg.Connection, job: dict) -> dict:
+    """Run and record one job. A bug in the worker fails that job instead of stopping the
+    loop; a lost connection still propagates so the loop can reconnect."""
+    try:
+        result = execute(job)
+        finish(conn, job["id"], result)
+    except psycopg.OperationalError:
+        raise
+    except Exception as e:
+        log(f"job {job['id']}: worker error\n{traceback.format_exc()}")
+        conn.rollback()
+        result = {"error": f"The worker failed on this job ({type(e).__name__}). "
+                           "The worker log has details."}
+        finish(conn, job["id"], result)
+    return result
 
 
 def ingest_loop(settings, stop: threading.Event) -> None:
@@ -117,10 +149,14 @@ def bars_app(settings):
 
     from btest import bars
 
-    token = os.environ.get("BTEST_INTERNAL_TOKEN", "")
+    token = os.environ.get("BTEST_INTERNAL_TOKEN", "").encode()
+
+    def authorized(request) -> bool:
+        given = request.headers.get("x-btest-token", "").encode()
+        return bool(token) and hmac.compare_digest(given, token)
 
     async def candles(request):
-        if not token or request.headers.get("x-btest-token") != token:
+        if not authorized(request):
             return JSONResponse({"error": "Forbidden."}, status_code=403)
         q = request.query_params
         symbol = q.get("symbol", "").upper()
@@ -150,7 +186,7 @@ def bars_app(settings):
         return (422 if out.get("error") else 200), out
 
     async def indicator_route(request):
-        if not token or request.headers.get("x-btest-token") != token:
+        if not authorized(request):
             return JSONResponse({"error": "Forbidden."}, status_code=403)
         from starlette.concurrency import run_in_threadpool
         status, out = await run_in_threadpool(indicator, await request.json())
@@ -189,6 +225,8 @@ def run(poll_s: float = 1.0) -> None:
         threading.Thread(target=live_loop, args=(settings, stop), daemon=True).start()
     if os.environ.get("BTEST_INTERNAL_TOKEN"):
         threading.Thread(target=serve_bars, args=(settings,), daemon=True).start()
+    if not os.environ.get("BTEST_RUNNER_DATABASE_URL"):
+        log("BTEST_RUNNER_DATABASE_URL is not set; lab jobs will fail until it is")
     log(f"worker {worker} ready, data in {settings.data_dir}")
     while True:
         try:
@@ -200,10 +238,12 @@ def run(poll_s: float = 1.0) -> None:
                         continue
                     log(f"job {job['id']}: {job['kind']} {job['name']} v{job['version']}")
                     t0 = time.perf_counter()
-                    result = execute(job)
-                    finish(conn, job["id"], result)
+                    result = handle(conn, job)
                     log(f"job {job['id']}: {'failed' if result.get('error') else 'done'} "
                         f"in {time.perf_counter() - t0:.1f}s")
         except psycopg.OperationalError as e:
             log(f"database connection lost ({e}); retrying in 5s")
+            time.sleep(5)
+        except Exception:
+            log(f"worker loop error; retrying in 5s\n{traceback.format_exc()}")
             time.sleep(5)
