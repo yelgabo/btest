@@ -1,10 +1,11 @@
 import subprocess
-from datetime import date
+from datetime import UTC, date, datetime
 
 import psycopg
 import pytest
 
 from btest import db, lab, live
+from btest.broker import BrokerError
 from btest.config import Settings
 
 TEST_DB = "postgresql://localhost:5432/btest_test_live"
@@ -166,7 +167,6 @@ def test_written_puts_must_fit_in_free_cash_within_capital(testdb):
                    "('XLF240315P00045000', 'XLF', '2024-03-15', 'P', 45)")
     testdb.execute("INSERT INTO market.option_bar_30m VALUES ('XLF240315P00045000', "
                    "'2024-02-01 19:30+00', 1, 1, 1, 1.0, 10, 1, 1)")
-    from datetime import UTC, datetime
     cutoff = datetime(2024, 2, 1, 20, 14, tzinfo=UTC)
     live._trade_options(testdb, dep, {"XLF240315P00045000": -5}, account, ["XLF"],
                         lambda *a, **kw: sent.append((a, kw)), cutoff)
@@ -185,3 +185,87 @@ def test_old_strategies_with_a_computed_universe_still_parse():
                         "    def on_bar(self, ctx, bar):\n        pass\n").replace(
         'universe = ["A", "B"]', "universe = SYMBOLS")
     assert lab.inspect_code("SYMBOLS = ['A']\n" + code).error is None
+
+
+def test_overlapping_universes_are_refused(testdb):
+    first = deployment(testdb, "first")
+    assert live.enable(testdb, "first")
+    try:
+        with pytest.raises(SystemExit, match="overlaps enabled paper deployment first on A, B"):
+            live.deploy(testdb, "second", "portfolio/rotate", None, 10_000.0, {})
+        testdb.execute("UPDATE live.deployment SET enabled = false WHERE id = %s", (first.id,))
+        testdb.commit()
+        deployment(testdb, "second")
+        assert live.enable(testdb, "second")
+        with pytest.raises(SystemExit, match="overlaps enabled paper deployment second"):
+            live.enable(testdb, "first")
+    finally:
+        testdb.execute("UPDATE live.deployment SET enabled = false")
+        testdb.commit()
+    assert not live.enable(testdb, "missing")
+
+
+class RejectingBroker(FakeBroker):
+    def close_position(self, symbol, client_order_id):
+        raise BrokerError(f"POST /v2/orders: 403 cannot sell {symbol}")
+
+
+def test_rejected_order_is_recorded_and_the_rest_still_go_out(testdb):
+    dep = deployment(testdb, "rejects")
+    broker = RejectingBroker(19_000.0, {"A": (100.0, 10.0)})
+    did = testdb.execute(
+        "INSERT INTO live.decision (deployment_id, session, as_of, status) VALUES "
+        "(%s, '2026-10-28', now(), 'decided') RETURNING id", (dep.id,)).fetchone()[0]
+    placed, rejected = live.place_orders(
+        testdb, broker, dep, did, {"targets": {"weights": {"B": 0.5}, "options": {}},
+                                   "prices": {"A": 10.0, "B": 50.0}, "session": "2026-10-28"},
+        live.account_state(broker, ["A", "B"]))
+    assert broker.calls == [("buy", "B", 10_000.0, None)]
+    assert len(placed) == 1 and len(rejected) == 1 and "403" in rejected[0]
+    rows = testdb.execute("SELECT symbol, status, broker_id FROM live.order "
+                          "WHERE decision_id = %s ORDER BY id", (did,)).fetchall()
+    assert rows == [("A", "rejected", None), ("B", "filled", "o0")]
+
+
+def oct_30(conn):
+    for d in ("2026-10-29", "2026-10-30", "2026-11-02"):
+        conn.execute("INSERT INTO market.session VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                     (d, f"{d} 13:30+00", f"{d} 20:00+00"))
+    conn.commit()
+
+
+def no_refresh(universe, options):
+    raise AssertionError("refresh should not run")
+
+
+def test_missed_decision_window_is_recorded_once(testdb):
+    oct_30(testdb)
+    dep = deployment(testdb, "missed")
+    after_order = datetime(2026, 10, 30, 19, 50, tzinfo=UTC)
+    live.step(testdb, FakeBroker(0.0, {}), dep, SETTINGS, after_order, no_refresh)
+    live.step(testdb, FakeBroker(0.0, {}), dep, SETTINGS, after_order, no_refresh)
+    status, error = testdb.execute("SELECT status, error FROM live.decision "
+                                   "WHERE deployment_id = %s", (dep.id,)).fetchone()
+    assert status == "failed" and "missed" in error
+    warns = testdb.execute("SELECT count(*) FROM live.event WHERE deployment_id = %s "
+                           "AND level = 'warn'", (dep.id,)).fetchone()[0]
+    assert warns == 1
+
+
+class QuietBroker(FakeBroker):
+    def activities(self, types, after):
+        return []
+
+
+def test_reconcile_refreshes_bars_first(testdb):
+    oct_30(testdb)
+    dep = deployment(testdb, "reconciles")
+    testdb.execute("INSERT INTO live.decision (deployment_id, session, as_of, status) VALUES "
+                   "(%s, '2026-10-30', now(), 'ordered')", (dep.id,))
+    testdb.commit()
+    refreshed = []
+    live.step(testdb, QuietBroker(0.0, {}), dep, SETTINGS,
+              datetime(2026, 10, 30, 20, 20, tzinfo=UTC), lambda u, o: refreshed.append((u, o)))
+    assert refreshed == [(["A", "B"], False)]
+    assert testdb.execute("SELECT status FROM live.decision WHERE deployment_id = %s",
+                          (dep.id,)).fetchone()[0] == "reconciled"

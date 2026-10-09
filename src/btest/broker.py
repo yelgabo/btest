@@ -72,7 +72,8 @@ class AlpacaBroker:
             raise
 
     def close_position(self, symbol: str, client_order_id: str) -> dict:
-        """Sell a whole position, fractional part included."""
+        """Sell the whole broker position, fractional part included. Only safe because
+        live.deploy and live.enable refuse deployments whose universes overlap."""
         qty = next((float(p["qty"]) for p in self.positions() if p["symbol"] == symbol), 0.0)
         if qty <= 0:
             raise BrokerError(f"no long position in {symbol}")

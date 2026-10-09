@@ -175,10 +175,17 @@ def main() -> None:
     if args.cmd == "ui":
         import uvicorn
 
-        from btest.ui.server import create_app
+        from btest.ui.server import check_exposure, create_app
+        app = create_app()
+        check_exposure(args.host)
         print(f"btest UI on http://{args.host}:{args.port}", flush=True)
-        uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning",
-                    proxy_headers=True, forwarded_allow_ips="*")
+        # Uvicorn reads the client address from X-Forwarded-For only on connections from
+        # BTEST_FORWARDED_ALLOW_IPS. Any client can send that header, so trusting every peer
+        # would let it pick its own address and dodge the per-address login limit. On Railway
+        # set it to the address range Railway's proxy connects from.
+        uvicorn.run(app, host=args.host, port=args.port, log_level="warning",
+                    proxy_headers=True,
+                    forwarded_allow_ips=os.environ.get("BTEST_FORWARDED_ALLOW_IPS") or "127.0.0.1")
         return
     settings = config.load(need_alpaca=args.cmd in ("ingest", "check-adjust", "ingest-options",
                                                      "live"))
@@ -306,8 +313,11 @@ def live_command(conn, settings, args) -> None:
                              dict(args.param))
         print(f"deployment {dep_id} created, disabled. Enable with: btest live enable {args.name}")
     elif args.live_cmd in ("enable", "disable"):
-        n = conn.execute("UPDATE live.deployment SET enabled = %s, updated_at = now() "
-                         "WHERE name = %s", (args.live_cmd == "enable", args.name)).rowcount
+        if args.live_cmd == "enable":
+            n = int(live.enable(conn, args.name))
+        else:
+            n = conn.execute("UPDATE live.deployment SET enabled = false, updated_at = now() "
+                             "WHERE name = %s", (args.name,)).rowcount
         conn.commit()
         print(f"{args.name}: {args.live_cmd}d" if n else f"no deployment {args.name}")
     elif args.live_cmd == "list":

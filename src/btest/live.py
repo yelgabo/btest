@@ -20,11 +20,11 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from btest import db
-from btest.broker import AlpacaBroker
+from btest.broker import AlpacaBroker, BrokerError
 from btest.ingest import log
 from btest.daily import Timing
-from btest.portfolio import (OPTION_MULTIPLIER, PortfolioCosts, is_decision_day, option_limit,
-                             parse_occ, plan_stock_orders)
+from btest.portfolio import (OPTION_MULTIPLIER, PortfolioCosts, is_decision_day, is_option,
+                             option_limit, parse_occ, plan_stock_orders)
 
 DECIDE_TIMEOUT_S = 240
 SELL_WAIT_S = 120
@@ -118,12 +118,17 @@ def run_decision(dep: Deployment, account: dict, session: date) -> dict:
 
 
 def strategy_equity(dep: Deployment, account: dict) -> float:
+    """Live sizing is capped at the deployed capital and does not compound: after gains the
+    strategy still trades `capital`, after losses the smaller account equity. A backtest
+    compounds, so the two drift apart once the deployment has gained or lost money."""
     return min(dep.capital, account["equity"])
 
 
 def place_orders(conn: psycopg.Connection, broker: AlpacaBroker, dep: Deployment,
-                 decision_id: int, decision: dict, account: dict) -> list[dict]:
-    """Sells first; waits for them; then buys sized to the cash actually available."""
+                 decision_id: int, decision: dict, account: dict) -> tuple[list[dict], list[str]]:
+    """Sells first; waits for them; then buys sized to the cash actually available. An order
+    the broker rejects is recorded and skipped so the rest still go out; returns the placed
+    orders and a description of each rejection."""
     targets = decision["targets"] or {"weights": {}, "options": {}}
     prices = {s: p for s, p in decision["prices"].items() if p is not None}
     equity = strategy_equity(dep, account)
@@ -131,13 +136,13 @@ def place_orders(conn: psycopg.Connection, broker: AlpacaBroker, dep: Deployment
                                       1.0)
     limit = dep.max_order * dep.capital
     session = decision["session"]
-    placed = []
+    placed, rejected = [], []
 
     def cid(symbol: str, leg: str) -> str:
         return f"btest:{dep.id}:{session}:{symbol}:{leg}"
 
     def send(symbol: str, side: str, leg: str, **kw) -> None:
-        if len(symbol) > 15:
+        if is_option(symbol):
             notional = (kw.get("qty") or 0) * kw["limit_price"] * OPTION_MULTIPLIER
         else:
             notional = kw.get("notional") or (kw.get("qty") or 0) * prices.get(symbol, 0.0)
@@ -147,18 +152,25 @@ def place_orders(conn: psycopg.Connection, broker: AlpacaBroker, dep: Deployment
             return
         client_id = cid(symbol, leg)
         existing = broker.order_by_client_id(client_id)
-        order = existing or (broker.close_position(symbol, client_id) if kw.get("close")
-                             else broker.submit(symbol, side, client_id,
-                                                notional=kw.get("notional"), qty=kw.get("qty"),
-                                                limit_price=kw.get("limit_price")))
+        try:
+            order = existing or (
+                broker.close_position(symbol, client_id) if kw.get("close")
+                else broker.submit(symbol, side, client_id, notional=kw.get("notional"),
+                                   qty=kw.get("qty"), limit_price=kw.get("limit_price")))
+        except BrokerError as e:
+            order = {"id": None, "status": "rejected"}
+            rejected.append(f"{side} {symbol}: {e}")
+            event(conn, dep.id, "alarm", f"order rejected, {side} {symbol}: {e}")
         conn.execute(
             "INSERT INTO live.order (decision_id, client_order_id, broker_id, symbol, side, "
             "notional, qty, limit_price, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
-            "ON CONFLICT (client_order_id) DO NOTHING",
+            "ON CONFLICT (client_order_id) DO UPDATE SET broker_id = EXCLUDED.broker_id, "
+            "status = EXCLUDED.status WHERE live.order.status = 'rejected'",
             (decision_id, client_id, order["id"], symbol, side, kw.get("notional"),
              kw.get("qty"), kw.get("limit_price"), order["status"]))
         conn.commit()
-        placed.append(order)
+        if order["id"] is not None:
+            placed.append(order)
 
     for symbol in sorted(exits):
         send(symbol, "sell", "exit", close=True)
@@ -182,7 +194,7 @@ def place_orders(conn: psycopg.Connection, broker: AlpacaBroker, dep: Deployment
             amount = round(dollars * scale, 2)
             if amount >= 1.0:
                 send(symbol, "buy", "buy", notional=amount)
-    return placed
+    return placed, rejected
 
 
 def _trade_options(conn, dep, wanted: dict[str, int], account: dict, universe: list[str],
@@ -334,6 +346,14 @@ def step(conn: psycopg.Connection, broker: AlpacaBroker, dep: Deployment, settin
             event(conn, dep.id, "alarm", f"decision failed: {result['error']}")
         return
     if row is None:
+        if now >= times["order"]:
+            # The row also stops this warning repeating on every poll for the rest of the day.
+            msg = "no decision before the order time; session missed"
+            conn.execute(
+                "INSERT INTO live.decision (deployment_id, session, as_of, status, error) "
+                "VALUES (%s, %s, %s, 'failed', %s)", (dep.id, session, times["decide"], msg))
+            conn.commit()
+            event(conn, dep.id, "warn", f"{session}: {msg}")
         return
     decision_id, status, targets, prices, account = row
     if status == "decided" and times["order"] <= now < times["close"]:
@@ -344,12 +364,15 @@ def step(conn: psycopg.Connection, broker: AlpacaBroker, dep: Deployment, settin
             conn.commit()
             return
         try:
-            place_orders(conn, broker, dep, decision_id,
-                         {"targets": targets, "prices": prices, "session": session.isoformat(),
-                          "cutoff": times["close"] - timedelta(minutes=Timing().data_min)},
-                         fresh)
-            conn.execute("UPDATE live.decision SET status = 'ordered' WHERE id = %s",
-                         (decision_id,))
+            _, rejected = place_orders(
+                conn, broker, dep, decision_id,
+                {"targets": targets, "prices": prices, "session": session.isoformat(),
+                 "cutoff": times["close"] - timedelta(minutes=Timing().data_min)}, fresh)
+            # 'ordered' rather than 'failed' so the orders that did go out still reconcile;
+            # the error column carries the partial failure.
+            conn.execute("UPDATE live.decision SET status = 'ordered', error = %s WHERE id = %s",
+                         ("rejected: " + "; ".join(rejected) if rejected else None,
+                          decision_id))
             conn.commit()
         except Exception as e:
             conn.rollback()
@@ -358,6 +381,8 @@ def step(conn: psycopg.Connection, broker: AlpacaBroker, dep: Deployment, settin
                          (str(e), decision_id))
             conn.commit()
     elif status == "ordered" and now >= times["reconcile"]:
+        # The 15:30 refresh ended before the 15:45 bar the fills are compared against.
+        refresh(_universe_of(dep.code), False)
         reconcile(conn, broker, dep, decision_id, settings.data_dir, session)
 
 
@@ -404,15 +429,44 @@ def live_loop(settings, stop, poll_s: float = 30.0) -> None:
         stop.wait(poll_s)
 
 
+def _check_overlap(conn, dep_id: int | None, code: str, mode: str) -> None:
+    """Positions are attributed to a deployment by symbol, so two enabled deployments on one
+    account that share a symbol would trade, close and kill-switch on each other's shares."""
+    universe = set(_universe_of(code))
+    for d in deployments(conn):
+        if d.mode != mode or d.id == dep_id:
+            continue
+        shared = universe & set(_universe_of(d.code))
+        if shared:
+            raise SystemExit(f"universe overlaps enabled {mode} deployment {d.name} on "
+                             f"{', '.join(sorted(shared))}; disable it first")
+
+
+def enable(conn, name: str) -> bool:
+    row = conn.execute(
+        "SELECT d.id, d.mode, v.code FROM live.deployment d "
+        "JOIN lab.strategy_version v ON v.id = d.strategy_version_id WHERE d.name = %s",
+        (name,)).fetchone()
+    if row is None:
+        return False
+    _check_overlap(conn, row[0], row[2], row[1])
+    conn.execute("UPDATE live.deployment SET enabled = true, updated_at = now() WHERE id = %s",
+                 (row[0],))
+    conn.commit()
+    return True
+
+
 def deploy(conn, name: str, strategy: str, version: int | None, capital: float,
            params: dict, mode: str = "paper") -> int:
     row = conn.execute(
-        "SELECT v.id FROM lab.strategy s JOIN lab.strategy_version v ON v.strategy_id = s.id "
+        "SELECT v.id, v.code FROM lab.strategy s "
+        "JOIN lab.strategy_version v ON v.strategy_id = s.id "
         "WHERE s.name = %s AND NOT s.archived AND s.kind = 'strategy' "
         + ("AND v.version = %s " if version else "") + "ORDER BY v.version DESC LIMIT 1",
         (strategy, version) if version else (strategy,)).fetchone()
     if row is None:
         raise SystemExit(f"no lab strategy {strategy}" + (f" v{version}" if version else ""))
+    _check_overlap(conn, None, row[1], mode)
     dep_id = conn.execute(
         "INSERT INTO live.deployment (name, strategy_version_id, params, capital, mode) "
         "VALUES (%s, %s, %s, %s, %s) RETURNING id",
