@@ -1,0 +1,20 @@
+#!/bin/sh
+# Checks the staged paper, ledger and outputs with docs/research/paper/check_claims.py.
+# Enabled per clone with: git config core.hooksPath .githooks
+staged=$(git diff --cached --name-only)
+generators='^(docs/research/olps-replication/[^/]*\.py|src/btest/(engine|fast|portfolio|metrics|longhist|olps|daily|runner)\.py)$'
+if echo "$staged" | grep -qE "$generators" && ! echo "$staged" | grep -q '^docs/research/olps-replication/outputs/' \
+   && [ "$BTEST_OUTPUTS_CHECKED" != 1 ]; then
+  echo "pre-commit: code that produces the paper's evidence changed but no output was regenerated." >&2
+  echo "Regenerate the affected outputs, or set BTEST_OUTPUTS_CHECKED=1 after confirming they do not change." >&2
+  exit 1
+fi
+echo "$staged" | grep -qE '^docs/research/(paper/|olps-replication/)' || exit 0
+tmp=$(mktemp -d) && trap 'rm -rf "$tmp"' EXIT
+git checkout-index -a --prefix="$tmp/"
+CLAIMS_DIR="$tmp/docs/research/paper" CLAIMS_BTEST="$tmp" CLAIMS_GIT_BTEST="$PWD" \
+  CWMR_REPLICATION="${CWMR_REPLICATION:-$(cd .. && pwd)/cwmr-etf-replication}" \
+  python3 docs/research/paper/check_claims.py || {
+  echo "pre-commit: re-derive the stale claims and the conclusion from the evidence, edit the paper and claims.toml together, then commit." >&2
+  exit 1
+}

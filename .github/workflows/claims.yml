@@ -1,0 +1,16 @@
+name: paper claims
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replication repository at the pinned commit
+        run: |
+          pin=$(python3 -c "import tomllib; print(tomllib.load(open('docs/research/paper/claims.toml','rb'))['replication_commit'])")
+          git clone https://github.com/yelgabo/cwmr-etf-replication.git "$RUNNER_TEMP/replication"
+          git -C "$RUNNER_TEMP/replication" checkout --quiet "$pin"
+      - name: Check the paper against its claim ledger
+        run: CWMR_REPLICATION="$RUNNER_TEMP/replication" python3 docs/research/paper/check_claims.py
