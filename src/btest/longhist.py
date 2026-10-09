@@ -1,7 +1,8 @@
 """The long-history data source: Yahoo's daily adjusted closes for btest's symbols from 1995 or
 each symbol's first trading day, whichever is later (docs/superpowers/specs/
 2026-10-06-long-history-data.md). Day bars, so it is kept apart from the minute-bar store.
-A strategy decides on a session's close and its orders fill at the next session's open."""
+A strategy decides on a session's close and its orders fill at the next session's open; with
+decide_at="open" it decides on a session's open and fills at that session's close."""
 import json
 import time
 import urllib.request
@@ -13,6 +14,9 @@ import psycopg
 from btest.calendar import nyse_sessions
 
 START = date(1995, 1, 3)
+# Yahoo carries an older product's prices under these tickers; the fund starts on this day.
+# SMH: the Semiconductor HOLDRS trust until VanEck's ETF began trading on 2011-12-21.
+FIRST_DAY = {"SMH": date(2011, 12, 21)}
 PRICE_COLS = ("open", "high", "low", "close", "raw_close", "fill", "cut_open", "cut_high",
               "cut_low", "cut_close", "raw_cut_close")
 
@@ -42,6 +46,8 @@ def build(symbols: list[str], end: date) -> pl.DataFrame:
     parts = []
     for symbol in symbols:
         px = yahoo(symbol)
+        if symbol in FIRST_DAY:
+            px = px.filter(pl.col("date") >= FIRST_DAY[symbol])
         rows = days.filter(pl.col("date") >= px["date"].min()).join(px, on="date", how="left")
         rows = rows.with_columns(pl.col("close").forward_fill())
         parts.append(rows.with_columns(pl.col("open").fill_null(pl.col("close")),
@@ -49,8 +55,13 @@ def build(symbols: list[str], end: date) -> pl.DataFrame:
     return pl.concat(parts).select("symbol", "date", "open", "close")
 
 
-def store(conn: psycopg.Connection, rows: pl.DataFrame) -> None:
-    conn.execute("DELETE FROM market.longhist")
+def store(conn: psycopg.Connection, rows: pl.DataFrame, replace_all: bool = True) -> None:
+    """Replaces the whole table, or with replace_all=False only the symbols in rows."""
+    if replace_all:
+        conn.execute("DELETE FROM market.longhist")
+    else:
+        conn.execute("DELETE FROM market.longhist WHERE symbol = ANY(%s)",
+                     (rows["symbol"].unique().to_list(),))
     with conn.cursor() as cur:
         with cur.copy("COPY market.longhist (symbol, date, open, close) FROM STDIN") as cp:
             for row in rows.iter_rows():
@@ -58,10 +69,13 @@ def store(conn: psycopg.Connection, rows: pl.DataFrame) -> None:
     conn.commit()
 
 
-def frames(conn: psycopg.Connection, symbols: list[str], end: date) -> dict[str, pl.DataFrame]:
-    """Per-symbol daily frames in the shape btest.daily.load returns. The strategy sees each
-    session's close; fill is the next session's open, so an order placed on what the close showed
-    trades after it. On the last row there is no next open, so the engine drops that decision."""
+def frames(conn: psycopg.Connection, symbols: list[str], end: date,
+           decide_at: str = "close") -> dict[str, pl.DataFrame]:
+    """Per-symbol daily frames in the shape btest.daily.load returns. With decide_at="close" the
+    strategy sees each session's close; fill is the next session's open, so an order placed on
+    what the close showed trades after it. On the last row there is no next open, so the engine
+    drops that decision. With decide_at="open" the strategy sees today's open (and earlier
+    sessions in full) and fills at today's close."""
     rows = conn.execute("SELECT symbol, date, open, close FROM market.longhist "
                         "WHERE symbol = ANY(%s) AND date < %s ORDER BY symbol, date",
                         (symbols, end)).fetchall()
@@ -72,7 +86,14 @@ def frames(conn: psycopg.Connection, symbols: list[str], end: date) -> dict[str,
         d = t.filter(pl.col("symbol") == s)
         if d.is_empty():
             raise SystemExit(f"no long-history data for {s}; run `btest longhist`")
-        out[s] = d.select("date", *[pl.col("close").alias(c) for c in PRICE_COLS if c != "fill"],
-                          pl.col("open").shift(-1).alias("fill"),
-                          pl.lit(1e9).alias("volume"), pl.lit(1e9).alias("cut_volume"))
+        if decide_at == "open":
+            known = [pl.col("open").alias(c) for c in
+                     ("cut_open", "cut_high", "cut_low", "cut_close", "raw_cut_close")]
+            out[s] = d.select("date", "open", *[pl.col("close").alias(c) for c in
+                                                ("high", "low", "close", "raw_close", "fill")],
+                              *known, pl.lit(1e9).alias("volume"), pl.lit(1e9).alias("cut_volume"))
+        else:
+            out[s] = d.select("date", *[pl.col("close").alias(c) for c in PRICE_COLS if c != "fill"],
+                              pl.col("open").shift(-1).alias("fill"),
+                              pl.lit(1e9).alias("volume"), pl.lit(1e9).alias("cut_volume"))
     return out

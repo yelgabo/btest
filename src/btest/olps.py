@@ -534,25 +534,37 @@ class OnlineStrategy(Strategy):
     bars = "monthly" feeds the algorithm month-over-month price ratios (closes on each month's
     last session, then today's price) instead of daily ones; pair it with
     rebalance = "month_end". bars = "weekly" does the same per ISO week; pair it with
-    rebalance = "weekly"."""
+    rebalance = "weekly".
+
+    price = "open" with anchor = "first" measures each period from its first session's open
+    instead of its last session's close; pair it with rebalance = "week_start" or "month_start"
+    and data "longhist_open", which decides on the open."""
 
     bars = "daily"
+    price = "close"
+    anchor = "last"
 
     def make(self, n: int) -> Online:
         raise NotImplementedError
 
     def _closes(self, data) -> np.ndarray:
         """One row per bar and one column per universe symbol; NaN before a symbol's data."""
-        frame = data.frame("close")
+        frame = data.frame(self.price)
         if self.bars != "daily":
             period = {"monthly": lambda d: (d.year, d.month),
                       "weekly": lambda d: d.isocalendar()[:2]}.get(self.bars)
             if period is None:
                 raise ValueError('bars must be "daily", "weekly" or "monthly"')
             keys = [period(d) for d in frame["date"].to_list()]
-            # The last session of each completed period, then today.
-            keep = [i for i in range(len(keys) - 1) if keys[i + 1] != keys[i]]
-            keep.append(len(keys) - 1)
+            if self.anchor == "first":
+                # The first session of each period, ending with today.
+                keep = [i for i in range(len(keys)) if i == 0 or keys[i - 1] != keys[i]]
+                if keep[-1] != len(keys) - 1:
+                    keep.append(len(keys) - 1)
+            else:
+                # The last session of each completed period, then today.
+                keep = [i for i in range(len(keys) - 1) if keys[i + 1] != keys[i]]
+                keep.append(len(keys) - 1)
             frame = frame[keep]
         return frame.select(self.universe).to_numpy().astype(float)
 

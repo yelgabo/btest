@@ -432,7 +432,7 @@ async function runPage(id) {
         h("div", {class: "head", style: "margin-top:6px"}, h("h1", {}, cls),
           h("span", {class: "count"}, `run ${r.id}`),
           r.holdout ? h("span", {class: "flag"}, "holdout") : null,
-          r.config.data === "longhist" ? h("span", {class: "flag quiet", title: "Yahoo day bars from 1995; each symbol from its first trading day"}, "long history") : null,
+          r.config.data === "longhist" || r.config.data === "longhist_open" ? h("span", {class: "flag quiet", title: "Yahoo day bars from 1995; each symbol from its first trading day"}, r.config.data === "longhist_open" ? "long history, open" : "long history") : null,
           r.git_dirty ? h("span", {class: "flag quiet"}, "uncommitted") : null,
           r.strategy_id ? h("a", {class: "mini-link", href: `#/strategies/${r.strategy_id}`}, `Edit strategy (ran v${r.version})`) : null),
         h("div", {style: "display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:-8px 0 18px;color:var(--dim)"},
@@ -534,11 +534,17 @@ async function runPage(id) {
         h("dl", {class: "kv"},
           h("dt", {}, "Strategy file"), h("dd", {}, file),
           h("dt", {}, "Bars"), h("dd", {}, c.timeframe || "1m"),
-          h("dt", {}, "Data"), h("dd", {}, c.data === "longhist" ? "long history: Yahoo day bars, each symbol from its first trading day" : "btest bars"),
+          h("dt", {}, "Data"), h("dd", {}, c.data === "longhist" || c.data === "longhist_open" ? "long history: Yahoo day bars, each symbol from its first trading day" : "btest bars"),
           h("dt", {}, "Starting cash"), h("dd", {}, money(c.cash)),
-          h("dt", {}, "Slippage"), h("dd", {}, `${c.costs.slippage_bps} bps`),
+          h("dt", {}, "Slippage"), h("dd", {}, c.costs.slippage_schedule?.length
+              ? c.costs.slippage_schedule.map(([a, b, syms, bps]) =>
+                  `${bps} bps ${a}–${b}${syms.length ? " for " + syms.join(", ") : ""}`).join("; ")
+                + `; otherwise ${c.costs.slippage_bps} bps`
+              : `${c.costs.slippage_bps} bps`),
           ...(c.engine === "portfolio" ? [
-              h("dt", {}, "Decides"), h("dd", {}, c.data === "longhist" ? `${c.rebalance}, on the close, fills at the next open` : `${c.rebalance}, 15:30 New York time, fills at 15:45`),
+              h("dt", {}, "Decides"), h("dd", {}, c.data === "longhist" ? `${c.rebalance}, on the close, fills at the next open`
+              : c.data === "longhist_open" ? `${c.rebalance}, on the open, fills at that session's close`
+              : `${c.rebalance}, 15:30 New York time, fills at 15:45`),
               h("dt", {}, "Shares"), h("dd", {}, c.fractional ? "fractional" : "whole only"),
               h("dt", {}, "Idle cash"), h("dd", {}, c.cash_yield ? "earns the T-bill rate" : "earns nothing"),
               h("dt", {}, "Option spread"), h("dd", {}, `${pct(c.costs.option_half_spread, 0)} of price each way, min $${c.costs.option_min_half_spread}`),

@@ -18,7 +18,7 @@ from btest.daily import Timing
 from btest.engine import SEC_FEE_RATE, Fill
 from btest.sources.base import Dividend, Split
 
-SCHEDULES = ("daily", "weekly", "month_end", "month_start")
+SCHEDULES = ("daily", "weekly", "week_start", "month_end", "month_start")
 FIELDS = ("open", "high", "low", "close", "volume")
 OPTION_MULTIPLIER = 100
 
@@ -26,6 +26,10 @@ OPTION_MULTIPLIER = 100
 @dataclass(frozen=True)
 class PortfolioCosts:
     slippage_bps: float = 1.0
+    # Optional cost by year and symbol: (first_year, last_year, symbols, bps) entries, the first
+    # match wins and an empty symbols tuple matches every symbol. Unmatched trades pay
+    # slippage_bps.
+    slippage_schedule: tuple = ()
     sec_fee_rate: float = SEC_FEE_RATE
     # Option fills cross half the spread: this fraction of the price, at least min_tick.
     option_half_spread: float = 0.05
@@ -44,7 +48,8 @@ class PortfolioConfig:
     min_trade: float = 1.0
     benchmark: str = "SPY"
     timing: Timing = field(default_factory=Timing)
-    # "btest" (Alpaca bars from history_start) or "longhist" (btest.longhist, from 1995).
+    # "btest" (Alpaca bars from history_start), "longhist" (btest.longhist, from 1995, deciding
+    # on the close) or "longhist_open" (the same data, deciding on the open).
     data: str = "btest"
 
     def to_dict(self) -> dict:
@@ -60,6 +65,13 @@ class Targets:
     options: dict[str, int] = field(default_factory=dict)
 
 
+def slippage_bps(costs: PortfolioCosts, symbol: str, year: int) -> float:
+    for first, last, symbols, bps in costs.slippage_schedule:
+        if first <= year <= last and (not symbols or symbol in symbols):
+            return bps
+    return costs.slippage_bps
+
+
 def is_decision_day(dates: list[date], i: int, schedule: str) -> bool:
     if schedule == "daily":
         return True
@@ -72,6 +84,8 @@ def is_decision_day(dates: list[date], i: int, schedule: str) -> bool:
         return prev is None or prev.month != d.month
     if schedule == "weekly":
         return nxt is None or nxt.isocalendar()[1] != d.isocalendar()[1]
+    if schedule == "week_start":
+        return prev is None or prev.isocalendar()[:2] != d.isocalendar()[:2]
     raise ValueError(f"rebalance must be one of {', '.join(SCHEDULES)}")
 
 
@@ -344,7 +358,7 @@ class PortfolioEngine:
         self.next_open = config.data == "longhist"
         adjusted = (any((splits or {}).values()) or any((dividends or {}).values())
                     or options is not None)
-        if self.next_open and adjusted:
+        if config.data in ("longhist", "longhist_open") and adjusted:
             # A queued order is sized on decision-day prices and holdings; a split, dividend or
             # expiry between decision and fill would change them. Long history is adjusted.
             raise ValueError("long history takes no splits, dividends or options")
@@ -355,6 +369,11 @@ class PortfolioEngine:
                      for k, d in enumerate(self.all_sessions[:-1])}
             self.decide_ts = closes
             self.fill_ts = [opens[after[d]] if d in after else None for d in market.dates]
+        if config.data == "longhist_open":
+            # Decides on the session's open and fills at its close, the first price after it.
+            opens = [by_date[d][0] for d in market.dates]
+            self.decide_ts = self.cutoff_ts = opens
+            self.fill_ts = closes
         self.splits = splits or {}
         self.dividends = dividends or {}
         self.options = options or NoOptions()
@@ -520,7 +539,8 @@ class PortfolioEngine:
         """Trade toward t at session i's fill price. A queued long-history order passes the
         equity seen at its decision, as a notional order sized then would be."""
         cfg, costs = self.config, self.config.costs
-        slip = costs.slippage_bps / 10_000
+        year = self.market.dates[i].year
+        slip = {s: slippage_bps(costs, s, year) / 10_000 for s in self.market.col}
         ts = self.fill_ts[i]
         if equity is None:
             equity = self.equity_at_cutoff(i)
@@ -543,18 +563,18 @@ class PortfolioEngine:
                 q = -math.floor(-q)
             if q == 0:
                 continue
-            price = fill * (1 - slip)
+            price = fill * (1 - slip[s])
             fees = abs(q) * price * costs.sec_fee_rate
             self.account.cash += abs(q) * price - fees
             realized = self.account.stocks[s].trade(q, price)
-            self.fills.append(Fill(ts, s, q, price, 0.0, fees, abs(q) * fill * slip, realized))
+            self.fills.append(Fill(ts, s, q, price, 0.0, fees, abs(q) * fill * slip[s], realized))
         buys = {s: v for s, v in orders.items() if v > 0}
         spendable = self.account.cash - self.account.collateral()
-        need = sum(buys.values()) * (1 + slip)
+        need = sum(v * (1 + slip[s]) for s, v in buys.items())
         scale = min(1.0, max(spendable, 0.0) / need) if need > 0 else 0.0
         for s, dollars in sorted(buys.items()):
             fill = float(self.market.raw["fill"][i, self.market.col[s]])
-            price = fill * (1 + slip)
+            price = fill * (1 + slip[s])
             q = dollars * scale / price
             if not cfg.fractional:
                 q = math.floor(q)
@@ -562,7 +582,7 @@ class PortfolioEngine:
                 continue
             self.account.cash -= q * price
             realized = self.account.stocks.setdefault(s, Position()).trade(q, price)
-            self.fills.append(Fill(ts, s, q, price, 0.0, 0.0, q * fill * slip, realized))
+            self.fills.append(Fill(ts, s, q, price, 0.0, 0.0, q * fill * slip[s], realized))
 
     def _trade_options(self, i: int, wanted: dict[str, int], ts: datetime) -> None:
         """Option orders are limit orders at the reference price (the last 30-minute bar that

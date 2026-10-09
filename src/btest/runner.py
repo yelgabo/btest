@@ -3,6 +3,7 @@ import importlib.util
 import inspect
 import subprocess
 import time
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -141,7 +142,7 @@ def benchmark_from_daily(frames: dict[str, pl.DataFrame], name: str, dates: pl.S
     return pl.DataFrame({"date": dates, "benchmark": values})
 
 
-DATA_SOURCES = ("btest", "longhist")
+DATA_SOURCES = ("btest", "longhist", "longhist_open")
 
 
 def portfolio_config(config: Config, extra: dict | None = None):
@@ -181,7 +182,15 @@ def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path,
     first_day, last_day = start.date(), end.date()
     need = list(dict.fromkeys(universe + list({"SPY": ["SPY"], "60/40": ["SPY", "AGG"]}
                                               [pconfig.benchmark])))
-    if pconfig.data == "longhist":
+    # A strategy can require a data source (its timing depends on it) and set its own costs.
+    required = getattr(cls, "data", None)
+    if required and pconfig.data != required:
+        raise SystemExit(f"{cls.__name__} runs on data {required!r}; pass --data {required}")
+    schedule = getattr(cls, "slippage_schedule", None)
+    if schedule:
+        pconfig = replace(pconfig, costs=replace(pconfig.costs, slippage_schedule=tuple(
+            (a, b, tuple(s), bps) for a, b, s, bps in schedule)))
+    if pconfig.data in ("longhist", "longhist_open"):
         from btest import longhist
         from btest.calendar import nyse_sessions
         # market.session starts at history_start; this calendar also runs past the last day
@@ -189,7 +198,8 @@ def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path,
         all_sessions = nyse_sessions(longhist.START, date_cls(last_day.year + 2, 1, 1))
         sessions = all_sessions.filter(pl.col("date") < last_day)
         splits, dividends = {}, {}
-        frames = longhist.frames(conn, need, last_day)
+        frames = longhist.frames(conn, need, last_day,
+                                 decide_at="open" if pconfig.data == "longhist_open" else "close")
     else:
         # The full calendar, published a year ahead: the daily cache covers every bar and
         # month_end / month_position see the sessions after a run's last day.
@@ -208,7 +218,7 @@ def run_portfolio(conn: psycopg.Connection, data_dir: Path, strategy_path: Path,
     market = Market(dates, {s: frames[s] for s in universe})
     rf = db.get_rates(conn, "DTB3")
     engine = PortfolioEngine(market, all_sessions, pconfig, splits, dividends, rf,
-                             None if pconfig.data == "longhist" else OptionBook(conn, end))
+                             None if pconfig.data in ("longhist", "longhist_open") else OptionBook(conn, end))
     t0 = time.perf_counter()
     result = engine.run(strategy, first_day, last_day)
     duration = time.perf_counter() - t0

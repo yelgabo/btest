@@ -131,3 +131,78 @@ def test_long_history_refuses_splits():
     with pytest.raises(ValueError):
         PortfolioEngine(Market(dates, frames), days, PortfolioConfig(data="longhist"),
                         splits={"SPY": [Split(dates[1], 1, 2, "test")]})
+
+
+def test_open_timing_sees_the_open_and_fills_at_the_close():
+    rows = [("SPY", date(1995, 1, 3), 99.0, 100.0), ("SPY", date(1995, 1, 4), 100.5, 101.0)]
+    f = longhist.frames(FakeConn(rows), ["SPY"], date(1995, 1, 6), decide_at="open")["SPY"]
+    assert f["cut_close"].to_list() == [99.0, 100.5]
+    assert f["fill"].to_list() == [100.0, 101.0]
+    assert f["close"].to_list() == [100.0, 101.0]
+
+
+def test_an_order_decided_on_an_open_fills_at_that_sessions_close_not_the_open():
+    from btest.calendar import nyse_sessions
+    from btest.portfolio import Market, PortfolioConfig, PortfolioCosts, PortfolioEngine
+    from btest.strategy import Strategy
+
+    days = nyse_sessions(date(1995, 1, 3), date(1995, 1, 31))
+    dates = days["date"].to_list()[:3]
+    rows = [("SPY", d, 100.0 + k, 110.0 + k) for k, d in enumerate(dates)]
+    frames = longhist.frames(FakeConn(rows), ["SPY"], date(1995, 2, 1), decide_at="open")
+    seen = []
+
+    class Buy(Strategy):
+        universe = ["SPY"]
+        params = {}
+
+        def decide(self, as_of, data):
+            seen.append(data.history("SPY", "close")[-1])
+            return None if data.position("SPY") else {"SPY": 1.0}
+
+    cfg = PortfolioConfig(costs=PortfolioCosts(slippage_bps=0.0, sec_fee_rate=0.0),
+                          cash_yield=False, data="longhist_open")
+    res = PortfolioEngine(Market(dates, frames), days, cfg).run(Buy(), dates[0], date(1995, 2, 1))
+    assert seen[0] == 100.0  # the decision saw the open
+    (fill,) = res.fills
+    assert fill.price == 110.0  # and filled at that session's close
+    assert fill.ts == days["close_utc"][0]
+
+
+def test_week_start_decides_on_each_weeks_first_session():
+    from btest.calendar import nyse_sessions
+    from btest.portfolio import is_decision_day
+
+    dates = nyse_sessions(date(2024, 12, 23), date(2025, 1, 14))["date"].to_list()
+    starts = [d for i, d in enumerate(dates) if is_decision_day(dates, i, "week_start")]
+    assert starts == [date(2024, 12, 23), date(2024, 12, 30), date(2025, 1, 6), date(2025, 1, 13)]
+
+
+def test_slippage_schedule_by_year_and_symbol():
+    from btest.portfolio import PortfolioCosts, slippage_bps
+
+    costs = PortfolioCosts(slippage_bps=0.7, slippage_schedule=(
+        (1999, 2002, (), 5.0), (2013, 2024, ("SPY",), 1.0), (2013, 2024, (), 2.0)))
+    assert slippage_bps(costs, "XBI", 2000) == 5.0
+    assert slippage_bps(costs, "SPY", 2020) == 1.0
+    assert slippage_bps(costs, "XBI", 2020) == 2.0
+    assert slippage_bps(costs, "XBI", 2008) == 0.7
+
+
+def test_online_strategy_anchored_on_each_weeks_first_open():
+    import numpy as np
+
+    from btest.olps import OnlineStrategy
+
+    class Probe(OnlineStrategy):
+        universe = ["A"]
+        bars, price, anchor = "weekly", "open", "first"
+
+    class FakeData:
+        def frame(self, field):
+            assert field == "open"
+            days = [date(2025, 1, 6), date(2025, 1, 7), date(2025, 1, 13), date(2025, 1, 14),
+                    date(2025, 1, 21)]
+            return pl.DataFrame({"date": days, "A": [10.0, 11.0, 12.0, 13.0, 14.0]})
+
+    assert np.array_equal(Probe()._closes(FakeData())[:, 0], [10.0, 12.0, 14.0])

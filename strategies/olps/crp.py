@@ -14,5 +14,5 @@ class ConstantRebalanced(Strategy):
     def decide(self, as_of, data):
         if self.params["monthly"] and data.month_position()[1] != 1 and data.positions():
             return None
-        live = [s for s in self.universe if len(data.history(s, "close", 2)) == 2]
+        live = [s for s in data.symbols if len(data.history(s, "close", 2)) == 2]
         return {s: 1.0 / len(live) for s in live} if live else None
