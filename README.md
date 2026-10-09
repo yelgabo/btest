@@ -5,7 +5,7 @@ strategy, run it on years of real US market data with realistic trading costs, c
 simply holding the market, and, if it still looks good, paper-trade it on the same schedule the
 backtest assumed.
 
-![A backtest result: the strategy's equity against SPY, its drawdowns, and its return in every month](docs/images/run-analysis.png)
+![A backtest result: the strategy's equity against SPY, and how far each fell from its previous high](docs/images/equity.png)
 
 ## Who this is for
 
@@ -17,15 +17,7 @@ backtest assumed.
 
 ## How a strategy goes from idea to paper trading
 
-```mermaid
-flowchart LR
-    A[Write a strategy<br/>in the lab] --> B[Backtest on<br/>historical data]
-    B --> C[Compare with SPY<br/>and other runs]
-    C --> D[Try settings on<br/>data before 2025]
-    D --> E[Test once on the<br/>untouched holdout]
-    E --> F[Paper-trade with<br/>the same timing]
-    F --> G[Check live fills<br/>against the backtest]
-```
+![From idea to paper trading: write, backtest, compare, try settings, test once on the holdout, paper-trade, check live fills](docs/images/workflow.svg)
 
 Each step has a screen on the website.
 
@@ -43,9 +35,10 @@ hold), and a price chart with every buy and sell.
 
 ![A run page: total return, CAGR, Sharpe, drawdown and fills, with the trades on a price chart](docs/images/run-detail.png)
 
-Below that are the equity curve, the drawdowns and a month-by-month table (the picture at the
-top of this page). A strategy can beat SPY overall and still lose half its value along the way;
-the drawdown chart shows that.
+Below that are the equity curve, the drawdowns and a month-by-month table. A strategy can beat
+SPY overall and still lose half its value along the way; the drawdown chart shows that.
+
+![Equity against SPY, drawdowns, and the return in every month and year](docs/images/run-analysis.png)
 
 ### Compare runs
 

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="250" viewBox="0 0 980 250" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">
+  <title>From idea to paper trading</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7a90"/>
+    </marker>
+  </defs>
+  <rect width="980" height="250" rx="12" fill="#f6f8fa"/>
+  <g fill="#ffffff" stroke="#9aa8bb" stroke-width="1.5">
+    <rect x="20" y="30" width="200" height="66" rx="10"/>
+    <rect x="260" y="30" width="200" height="66" rx="10"/>
+    <rect x="500" y="30" width="200" height="66" rx="10"/>
+    <rect x="740" y="30" width="220" height="66" rx="10"/>
+    <rect x="140" y="160" width="220" height="66" rx="10" fill="#fff7e6" stroke="#d9a441"/>
+    <rect x="400" y="160" width="200" height="66" rx="10"/>
+    <rect x="640" y="160" width="220" height="66" rx="10"/>
+  </g>
+  <g fill="#1f2a37" text-anchor="middle">
+    <text x="120" y="58">Write a strategy</text><text x="120" y="80" fill="#5b6778">in the lab</text>
+    <text x="360" y="58">Backtest it</text><text x="360" y="80" fill="#5b6778">on historical data</text>
+    <text x="600" y="58">Compare with SPY</text><text x="600" y="80" fill="#5b6778">and other runs</text>
+    <text x="850" y="58">Try settings</text><text x="850" y="80" fill="#5b6778">on data before 2025</text>
+    <text x="250" y="188">Test once on the holdout</text><text x="250" y="210" fill="#8a6418">2025 on, kept untouched</text>
+    <text x="500" y="188">Paper-trade</text><text x="500" y="210" fill="#5b6778">on the same schedule</text>
+    <text x="750" y="188">Check live fills</text><text x="750" y="210" fill="#5b6778">against the backtest</text>
+  </g>
+  <g stroke="#6b7a90" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <line x1="222" y1="63" x2="256" y2="63"/>
+    <line x1="462" y1="63" x2="496" y2="63"/>
+    <line x1="702" y1="63" x2="736" y2="63"/>
+    <path d="M850,98 L850,128 L250,128 L250,156"/>
+    <line x1="362" y1="193" x2="396" y2="193"/>
+    <line x1="602" y1="193" x2="636" y2="193"/>
+  </g>
+</svg>
