@@ -16,16 +16,14 @@ These are the defaults, set before any run and not tuned.
 
 ## Results
 
-Run on the local database (`postgresql://localhost:5432/btest`, runs 7-10) because the Railway
-proxy was refusing connections on 2026-10-22, so these runs are not on the website.
-$100,000, shorting allowed, SEC fee on sales, no commission.
+Website runs 102-105. $100,000, shorting allowed, SEC fee on sales, no commission.
 
 | Run | Sides | Slippage | CAGR | Sharpe | Max DD | Trades |
 |---|---|---|---|---|---|---|
-| 9 | both | 0 bp | -6.0% | -0.98 | -43.9% | 4,611 |
-| 10 | both | 1 bp | -15.2% | -2.29 | -77.6% | 4,611 |
-| 7 | long | 1 bp | -8.0% | -1.67 | -54.0% | 2,408 |
-| 8 | short | 1 bp | -7.9% | -1.85 | -52.6% | 2,210 |
+| 102 | both | 0 bp | -6.0% | -0.98 | -43.9% | 4,611 |
+| 103 | both | 1 bp | -15.2% | -2.29 | -77.6% | 4,611 |
+| 104 | long | 1 bp | -8.0% | -1.67 | -54.0% | 2,408 |
+| 105 | short | 1 bp | -7.9% | -1.85 | -52.6% | 2,210 |
 
 SPY buy and hold over the same window: 14.5% CAGR, Sharpe 0.73.
 
