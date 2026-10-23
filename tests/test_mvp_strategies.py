@@ -72,3 +72,34 @@ def test_opening_range_half_day_carry_matches():
     cls = load_strategy_class(S / "intraday" / "opening_range.py")
     r = compare(cls, {"symbol": "X", "stop_at_range_low": False}, "X", df, [], [], CFG)
     assert r.event_fills >= 2 and r.ok, r
+
+
+def test_vwap_band_fade_parity_with_shorts():
+    from dataclasses import replace
+    cls = load_strategy_class(S / "intraday" / "vwap_band_fade.py")
+    minute, splits, divs = synthetic(days=30, per_day=390)
+    r = compare(cls, {"symbol": "X"}, "X", minute, splits, divs, replace(CFG, allow_short=True))
+    assert r.event_fills >= 4, r
+    assert r.ok, r
+
+
+def test_vwap_band_fade_is_flat_every_day_and_trades_both_sides():
+    from dataclasses import replace
+
+    from btest.engine import Engine
+    cls = load_strategy_class(S / "intraday" / "vwap_band_fade.py")
+    minute, splits, divs = synthetic(days=30, per_day=390)
+    res = Engine({"X": minute}, replace(CFG, allow_short=True), {"X": splits},
+                 {"X": divs}).run(cls(symbol="X"))
+    by_day = {}
+    for f in res.fills:
+        by_day.setdefault(f.ts.date(), []).append(f.qty)
+    assert all(sum(q) == 0 for q in by_day.values()), by_day
+    opens = [q[0] for q in by_day.values()]
+    assert any(q < 0 for q in opens) and any(q > 0 for q in opens)
+
+
+def test_vwap_band_fade_rejects_bad_bands():
+    cls = load_strategy_class(S / "intraday" / "vwap_band_fade.py")
+    with pytest.raises(ValueError):
+        cls(entry_sd=3.0, stop_sd=2.0)

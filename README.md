@@ -227,6 +227,7 @@ shell.
 | `trend/momentum_12m` | 1D | Hold while the 12-month return beats a hurdle, checked monthly |
 | `risk/vol_target` | 1D | Always invested, sized to a target volatility |
 | `intraday/opening_range` | 5m | Buy a break of the first 30 minutes' high, flat by 15:50 |
+| `intraday/vwap_band_fade` | 1m | Short 2 VWAP bands up, buy 2 down, out at VWAP or 15:50 (needs `--allow-short`) |
 
 Indicators: `rsi`, `zscore`, `vwap`, `atr`, `volatility`, `roc`.
 
